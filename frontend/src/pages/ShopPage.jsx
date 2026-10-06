@@ -1,0 +1,2046 @@
+import Header from "../components/Header";
+import NewsLetter from "../components/NewsLetter";
+import Footer from "../components/Footer";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { useLayoutEffect, useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import api from "../api/axios";
+import { useCart } from "../context/CartContext";
+import { useWishlist } from "../context/WishlistContext";
+gsap.registerPlugin(ScrollTrigger);
+const ShopPage = () => {
+  const productListRef = useRef(null);
+  const { isWishlisted, toggleWishlist, wishlistUpdatingId } = useWishlist();
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = Number(searchParams.get("page")) || 1;
+  const [totalPages, setTotalPages] = useState(1);
+  const { addToCart } = useCart();
+
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(359);
+
+  const [sortBy, setSortBy] = useState("manual");
+
+  const [stockFilter, setStockFilter] = useState({
+    in: false,
+    out: false,
+  });
+
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
+
+  useEffect(() => {
+    if (isFilterOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isFilterOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setIsFilterOpen(false);
+        setIsSortOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleClearAll = (e) => {
+    if (e) e.preventDefault();
+    setMinPrice(0);
+    setMaxPrice(priceMax);
+    setStockFilter({ in: false, out: false });
+  };
+
+  const minGap = 1;
+  const priceMax = 359;
+
+  const minPercent = (minPrice / priceMax) * 100;
+  const maxPercent = (maxPrice / priceMax) * 100;
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const response = await api.get("/products", {
+          params: {
+            page: currentPage,
+            limit: 16,
+          },
+        });
+
+        const data = response.data?.data || [];
+
+        setProducts(data);
+
+        // Backend ke actual maximum price ke according slider set karo
+        const highestPrice = data.reduce(
+          (max, product) => Math.max(max, Number(product.price) || 0),
+          0,
+        );
+
+        if (highestPrice > 0) {
+          setMaxPrice(Math.ceil(highestPrice));
+        }
+      } catch (error) {
+        console.error("Shop Products API Error:", error);
+
+        setError(error.response?.data?.message || "Failed to load products");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [currentPage]);
+
+  const filteredProducts = products.filter((product) => {
+    const price = Number(product.price) || 0;
+    const stockQty = Number(product.stock_quantity) || 0;
+
+    const priceMatch = price >= minPrice && price <= maxPrice;
+
+    let stockMatch = true;
+
+    if (stockFilter.in || stockFilter.out) {
+      stockMatch =
+        (stockFilter.in && stockQty > 0) || (stockFilter.out && stockQty <= 0);
+    }
+
+    return priceMatch && stockMatch;
+  });
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case "title-ascending":
+        return (a.title || "").localeCompare(b.title || "");
+
+      case "title-descending":
+        return (b.title || "").localeCompare(a.title || "");
+
+      case "price-ascending":
+        return Number(a.price || 0) - Number(b.price || 0);
+
+      case "price-descending":
+        return Number(b.price || 0) - Number(a.price || 0);
+
+      case "date-ascending":
+        return (
+          Number(a.product_id || a.id || 0) - Number(b.product_id || b.id || 0)
+        );
+
+      case "date-descending":
+        return (
+          Number(b.product_id || b.id || 0) - Number(a.product_id || a.id || 0)
+        );
+
+      default:
+        return 0;
+    }
+  });
+  useEffect(() => {
+    const cleanups = [];
+
+    // Filter section accordion behavior
+    document
+      .querySelectorAll(".product-facet-filter-item")
+      .forEach((item) => {
+        const button = item.querySelector(".collapsible-toggle");
+        const content = item.querySelector(".collapsible");
+        const icon = item.querySelector(".icon-chevron-down");
+
+        if (!button || !content) return;
+
+        const setOpenState = (isOpen) => {
+          if (isOpen) {
+            content.style.height = `${content.scrollHeight}px`;
+            if (icon) icon.style.transform = "rotate(180deg)";
+          } else {
+            content.style.height = "0px";
+            if (icon) icon.style.transform = "rotate(0deg)";
+          }
+          content.style.overflow = "hidden";
+          content.style.transition = "height 0.3s ease";
+          if (icon) icon.style.transition = "transform 0.3s ease";
+          button.setAttribute("ap-expanded-aria", isOpen ? "true" : "false");
+        };
+
+        const initiallyOpen =
+          button.getAttribute("ap-expanded-aria") === "true";
+        setOpenState(initiallyOpen);
+
+        const handleClick = () => {
+          const isOpen = button.getAttribute("ap-expanded-aria") === "true";
+          if (isOpen) {
+            content.style.height = `${content.scrollHeight}px`;
+            requestAnimationFrame(() => {
+              content.style.height = "0px";
+            });
+            button.setAttribute("ap-expanded-aria", "false");
+            if (icon) icon.style.transform = "rotate(0deg)";
+          } else {
+            content.style.height = `${content.scrollHeight}px`;
+            button.setAttribute("ap-expanded-aria", "true");
+            if (icon) icon.style.transform = "rotate(180deg)";
+          }
+        };
+
+        button.addEventListener("click", handleClick);
+        cleanups.push(() => button.removeEventListener("click", handleClick));
+      });
+
+    // Price range setup
+    const priceWrapper = document.querySelector(".price-range");
+    const rangeMin = priceWrapper?.querySelectorAll(".range")[0];
+    const rangeMax = priceWrapper?.querySelectorAll(".range")[1];
+    const inputMin = priceWrapper?.querySelector("#filter\\.v\\.price\\.gte");
+    const inputMax = priceWrapper?.querySelector("#filter\\.v\\.price\\.lte");
+    const rangeGroup = priceWrapper?.querySelector(".range-group");
+    const minGap = 1;
+    const maxValue = rangeMax ? parseInt(rangeMax.max, 10) : 0;
+
+    const updateTrack = () => {
+      if (!rangeMin || !rangeMax || !rangeGroup || !maxValue) return;
+      const percentMin = (Number(rangeMin.value) / maxValue) * 100;
+      const percentMax = (Number(rangeMax.value) / maxValue) * 100;
+      rangeGroup.style.background = `linear-gradient(to right, rgb(226,226,226) 0%, rgb(226,226,226) ${percentMin}%, rgba(102,102,102,0.7) ${percentMin}%, rgba(102,102,102,0.7) ${percentMax}%, rgb(226,226,226) ${percentMax}%, rgb(226,226,226) 100%)`;
+    };
+
+    const syncFromSliderMin = () => {
+      if (!rangeMin || !rangeMax || !inputMin) return;
+      if (+rangeMin.value >= +rangeMax.value - minGap) {
+        rangeMin.value = String(+rangeMax.value - minGap);
+      }
+      inputMin.value = rangeMin.value;
+      updateTrack();
+      applyFilters();
+    };
+
+    const syncFromSliderMax = () => {
+      if (!rangeMin || !rangeMax || !inputMax) return;
+      if (+rangeMax.value <= +rangeMin.value + minGap) {
+        rangeMax.value = String(+rangeMin.value + minGap);
+      }
+      inputMax.value = rangeMax.value;
+      updateTrack();
+      applyFilters();
+    };
+
+    const syncFromInputMin = () => {
+      if (!rangeMin || !rangeMax || !inputMin) return;
+      let value = parseInt(inputMin.value, 10) || 0;
+      if (value < 0) value = 0;
+      if (value > +rangeMax.value - minGap) value = +rangeMax.value - minGap;
+      rangeMin.value = String(value);
+      inputMin.value = String(value);
+      updateTrack();
+      applyFilters();
+    };
+
+    const syncFromInputMax = () => {
+      if (!rangeMin || !rangeMax || !inputMax) return;
+      let value = parseInt(inputMax.value, 10) || 0;
+      if (value > maxValue) value = maxValue;
+      if (value < +rangeMin.value + minGap) value = +rangeMin.value + minGap;
+      rangeMax.value = String(value);
+      inputMax.value = String(value);
+      updateTrack();
+      applyFilters();
+    };
+
+    if (rangeMin && rangeMax && inputMin && inputMax) {
+      rangeMin.addEventListener("input", syncFromSliderMin);
+      rangeMax.addEventListener("input", syncFromSliderMax);
+      inputMin.addEventListener("input", syncFromInputMin);
+      inputMax.addEventListener("input", syncFromInputMax);
+      cleanups.push(() => {
+        rangeMin.removeEventListener("input", syncFromSliderMin);
+        rangeMax.removeEventListener("input", syncFromSliderMax);
+        inputMin.removeEventListener("input", syncFromInputMin);
+        inputMax.removeEventListener("input", syncFromInputMax);
+      });
+      updateTrack();
+    }
+
+    // Sort popover
+    const sortButton = document.getElementById("toggle-button");
+    const popover = document.getElementById("ap-sortbypopover");
+    const closeBtn = popover?.querySelector('[data-action="close"]');
+    const selectedText = document.getElementById("sort-by-selected-value");
+
+    const togglePopover = (e) => {
+      e.stopPropagation();
+      if (!popover) return;
+      if (popover.hasAttribute("open")) {
+        popover.removeAttribute("open");
+        sortButton?.setAttribute("ap-expanded-aria", "false");
+      } else {
+        popover.setAttribute("open", "");
+        sortButton?.setAttribute("ap-expanded-aria", "true");
+      }
+    };
+
+    const closePopover = () => {
+      popover?.removeAttribute("open");
+      sortButton?.setAttribute("ap-expanded-aria", "false");
+      sortButton?.setAttribute("aria-expanded", "false");
+    };
+
+    if (sortButton && popover) {
+      sortButton.addEventListener("click", togglePopover);
+      closeBtn?.addEventListener("click", closePopover);
+
+      const outsideClick = (e) => {
+        if (!popover.contains(e.target) && !sortButton.contains(e.target)) {
+          closePopover();
+        }
+      };
+      document.addEventListener("click", outsideClick);
+
+      cleanups.push(() => {
+        sortButton.removeEventListener("click", togglePopover);
+        closeBtn?.removeEventListener("click", closePopover);
+        document.removeEventListener("click", outsideClick);
+      });
+    }
+
+    const productContainer = document.getElementById("ap_productlist");
+    const getProducts = () =>
+      productContainer
+        ? Array.from(productContainer.querySelectorAll("product-item"))
+        : [];
+
+    const getTitle = (product) =>
+      product.querySelector(".product-card-title")?.innerText.trim() ||
+      "";
+
+    const getPrice = (product) =>
+      parseFloat(
+        product.querySelector(".price")?.innerText.replace(/[^0-9.]/g, ""),
+      ) || 0;
+
+    const getIdNumber = (product) =>
+      parseInt(product.id.replace("product-item-", ""), 10) || 0;
+
+    // Combined filter logic from the supplied script
+    // const getCheckedValues = (selector) =>
+    //   Array.from(document.querySelectorAll(selector))
+    //     .filter((input) => input.checked)
+    //     .map((input) => input.value);
+
+    // function applyFilters() {
+    //   const products = getProducts();
+    //   if (!products.length) return;
+
+    //   const availabilityValues = getCheckedValues(
+    //     'input[name="filter.v.availability"]',
+    //   );
+    //   const selectedFormats = getCheckedValues(
+    //     'input[name="filter.v.option.format"]',
+    //   );
+    //   const selectedBrands = getCheckedValues('input[name="filter.p.vendor"]');
+    //   const selectedCategories = getCheckedValues(
+    //     'input[name="filter.p.t.category"]',
+    //   );
+    //   const selectedRatings = getCheckedValues(
+    //     'input[name="filter.p.m.reviews.rating_count"]',
+    //   );
+
+    //   const minPrice = parseFloat(inputMin?.value) || 0;
+    //   const maxPrice = parseFloat(inputMax?.value) || 999999;
+
+    //   products.forEach((product) => {
+    //     const stock = product.dataset.stock || "in";
+    //     const format = product.dataset.format;
+    //     const brand = product.dataset.brand;
+    //     const category = product.dataset.category;
+    //     const rating = product.dataset.rating;
+    //     const price = getPrice(product);
+
+    //     const availabilityMatch =
+    //       availabilityValues.length === 0 ||
+    //       (availabilityValues.includes("1") && stock === "in") ||
+    //       (availabilityValues.includes("0") && stock === "out");
+
+    //     const formatMatch =
+    //       selectedFormats.length === 0 || selectedFormats.includes(format);
+    //     const brandMatch =
+    //       selectedBrands.length === 0 || selectedBrands.includes(brand);
+    //     const categoryMatch =
+    //       selectedCategories.length === 0 ||
+    //       selectedCategories.includes(category);
+    //     const ratingMatch =
+    //       selectedRatings.length === 0 || selectedRatings.includes(rating);
+    //     const priceMatch = price >= minPrice && price <= maxPrice;
+
+    //     product.style.display =
+    //       availabilityMatch &&
+    //       formatMatch &&
+    //       brandMatch &&
+    //       categoryMatch &&
+    //       ratingMatch &&
+    //       priceMatch
+    //         ? ""
+    //         : "none";
+    //   });
+    // }
+
+    // Sorting behavior from the supplied script
+    // const handleSortChange = (radio) => {
+    //   if (!radio.checked || !productContainer) return;
+
+    //   const label = radio
+    //     .closest("label")
+    //     ?.querySelector(".popover__choice-label")
+    //     ?.innerText.trim();
+    //   if (!label) return;
+
+    //   if (selectedText) selectedText.textContent = label;
+    //   closePopover();
+
+    //   const products = getProducts();
+
+    //   switch (label) {
+    //     case "Alphabetically, A-Z":
+    //       products.sort((a, b) => getTitle(a).localeCompare(getTitle(b)));
+    //       break;
+    //     case "Alphabetically, Z-A":
+    //       products.sort((a, b) => getTitle(b).localeCompare(getTitle(a)));
+    //       break;
+    //     case "Price, low to high":
+    //       products.sort((a, b) => getPrice(a) - getPrice(b));
+    //       break;
+    //     case "Price, high to low":
+    //       products.sort((a, b) => getPrice(b) - getPrice(a));
+    //       break;
+    //     case "Date, old to new":
+    //       products.sort((a, b) => getIdNumber(a) - getIdNumber(b));
+    //       break;
+    //     case "Date, new to old":
+    //       products.sort((a, b) => getIdNumber(b) - getIdNumber(a));
+    //       break;
+    //     case "Best selling":
+    //     case "Featured":
+    //       return;
+    //     default:
+    //       return;
+    //   }
+
+    //   products.forEach((product) => productContainer.appendChild(product));
+    // };
+
+    const sortRadios = document.querySelectorAll('input[name="sort_by"]');
+    sortRadios.forEach((radio) => {
+      const handleChange = () => handleSortChange(radio);
+      radio.addEventListener("change", handleChange);
+      cleanups.push(() => radio.removeEventListener("change", handleChange));
+    });
+
+    // Filter checkbox events
+    // const filterInputs = document.querySelectorAll(
+    //   'input[name="filter.v.availability"], input[name="filter.v.option.format"], input[name="filter.p.vendor"], input[name="filter.p.t.category"], input[name="filter.p.m.reviews.rating_count"]',
+    // );
+
+    // filterInputs.forEach((input) => {
+    //   input.addEventListener("change", applyFilters);
+    //   cleanups.push(() => input.removeEventListener("change", applyFilters));
+    // });
+
+    // // Initial filter state
+    // applyFilters();
+
+    return () => cleanups.forEach((cleanup) => cleanup());
+  }, []);
+
+  useLayoutEffect(() => {
+    const ctx = gsap.context(() => {
+      ScrollTrigger.batch("product-item", {
+        start: "top 90%",
+        once: true,
+
+        onEnter: (batch) => {
+          gsap.from(batch, {
+            y: 50,
+            opacity: 0,
+            duration: 0.7,
+            stagger: 0.12,
+            ease: "power2.out",
+            overwrite: true,
+
+            onComplete: function () {
+              gsap.set(this.targets(), {
+                clearProps: "transform",
+              });
+            },
+          });
+        },
+      });
+    }, productListRef);
+
+    return () => ctx.revert();
+  }, [products]);
+  return (
+    <>
+      <Header />
+      <div
+        id="shopify-section-template--24248446714139__banner"
+        className="site-section collection-banner-section"
+      >
+        <section>
+          <div className="container">
+            <ap-textoverlayimage
+              className="image-overlay image-overlay--small object-loaded"
+              style={{ opacity: "1" }}
+            >
+              <div className="image-overlay__image-wrapper"></div>
+              <div className="w-100">
+                <div
+                  className="image-overlay__content-wrapper"
+                  style={{ opacity: "1" }}
+                >
+                  <div className="image-overlay__content content-box text-container content-box-- content-box--center content-box--text-center">
+                    <nav className="breadcrumb text--xsmall">
+                      <ol className="breadcrumb__list">
+                        <li className="breadcrumb__item">
+                          <a
+                            className="breadcrumb__link"
+                            href="/"
+                            style={{ color: "#000" }}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              focusable="false"
+                              data-prefix="fal"
+                              data-icon="home"
+                              role="img"
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 576 512"
+                              className="icon icon-home"
+                            >
+                              <path
+                                fill="currentColor"
+                                d="M541 229.16l-61-49.83v-77.4a6 6 0 0 0-6-6h-20a6 6 0 0 0-6 6v51.33L308.19 39.14a32.16 32.16 0 0 0-40.38 0L35 229.16a8 8 0 0 0-1.16 11.24l10.1 12.41a8 8 0 0 0 11.2 1.19L96 220.62v243a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16v-128l64 .3V464a16 16 0 0 0 16 16l128-.33a16 16 0 0 0 16-16V220.62L520.86 254a8 8 0 0 0 11.25-1.16l10.1-12.41a8 8 0 0 0-1.21-11.27zm-93.11 218.59h.1l-96 .3V319.88a16.05 16.05 0 0 0-15.95-16l-96-.27a16 16 0 0 0-16.05 16v128.14H128V194.51L288 63.94l160 130.57z"
+                                className=""
+                              ></path>
+                            </svg>
+                            Home
+                          </a>
+                        </li>
+                        <li className="breadcrumb__item">
+                          <span
+                            className="breadcrumb__link"
+                            style={{ color: "#000" }}
+                          >
+                            Products
+                          </span>
+                        </li>
+                      </ol>
+                    </nav>
+                    <h2 className="heading h1 mb-4 pb-2">
+                      <ap-splitlines style={{ opacity: "1" }}>
+                        <span style={{ opacity: "1", fontSize: "70px" }}>
+                          Products
+                        </span>
+                      </ap-splitlines>
+                    </h2>
+                  </div>
+                </div>
+              </div>
+            </ap-textoverlayimage>
+          </div>
+        </section>
+      </div>
+      <div
+        id="shopify-section-template--24248446714139__product-grid"
+        className="site-section main-collection-section"
+      >
+        <section className="">
+          <div className="container">
+            <ap-productfacet
+              className="product-facet"
+              section-id="template--24248446714139__product-grid"
+            >
+              <div
+                className={`mobile-filter-backdrop ${isFilterOpen ? "open" : ""}`}
+                onClick={() => setIsFilterOpen(false)}
+              />
+              <div className={`product-facet-aside ${isFilterOpen ? "open" : ""}`}>
+                <div className="product-facet-categories hide-on-pocket">
+                  <div className="collapsible-toggle product-facet-categories-title heading h6 product-facet-filters-header">
+                    Product categories
+                  </div>
+                  <div className="product-facet-categories-list">
+                    <Link to="/collection/books">
+                      Books
+                      <span className="count">(28) </span>
+                    </Link>
+                    <Link to="/collection/frontpage">
+                      Books New
+                      <span className="count">(28) </span>
+                    </Link>
+                    <Link to="/collection/family">
+                      Family
+                      <span className="count">(7) </span>
+                    </Link>
+                    <Link to="/collection/fantasy">
+                      Fantasy
+                      <span className="count">(7) </span>
+                    </Link>
+                    <Link to="/collection/fiction">
+                      Fiction
+                      <span className="count">(28) </span>
+                    </Link>
+                    <Link to="/collection/horror">
+                      Horror
+                      <span className="count">(7) </span>
+                    </Link>
+                  </div>
+                </div>
+                <ap-safesticky
+                  className="product-facet-aside-inner"
+                  offset="30"
+                  style={{ top: "-322.817px" }}
+                >
+                  <div className="product-facet-filters-header hide-on-pocket">
+                    <p className="heading h6">Filters</p>
+                  </div>
+
+                  <ap-facetfilters
+                    id="ap-facetfilters"
+                    className="product-facet-filters"
+                    always-visible=""
+                  >
+                    <span className="drawer__overlay"></span>
+
+                    <header className="drawer__header hide-on-laptop-up">
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <p className="drawer__title heading h6" style={{ margin: 0 }}>
+                          Filters
+                        </p>
+                        <button
+                          type="button"
+                          className="drawer__header-action link text--subdued"
+                          onClick={handleClearAll}
+                          style={{ margin: 0, textDecoration: "underline", background: "none", border: "none", color: "#027a36", cursor: "pointer", fontSize: "14px" }}
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="drawer__close-button tap-target"
+                        onClick={() => setIsFilterOpen(false)}
+                        title="Close"
+                        aria-label="Close filters"
+                      >
+                        <svg
+                          focusable="false"
+                          width="14"
+                          height="14"
+                          className="icon icon--close"
+                          viewBox="0 0 14 14"
+                        >
+                          <path
+                            d="M13 13L1 1M13 1L1 13"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            fill="none"
+                          ></path>
+                        </svg>
+                      </button>
+                    </header>
+                    <div className="drawer__content">
+                      <form id="ap-facetfilters-form">
+                        <input
+                          id="input-s"
+                          type="hidden"
+                          name="sort_by"
+                          value="title-ascending"
+                        />
+                        <input type="hidden" name="q" value="" />
+                        <input type="hidden" name="type" value="product" />
+                        <input
+                          type="hidden"
+                          name="option[prefix]"
+                          value="last"
+                        />
+                        <input
+                          type="hidden"
+                          name="option[unavailable_products]"
+                          value="last"
+                        />
+                        <div className="product-facet-active-list tag-list hide-on-phone"></div>
+                        <div className="product-facet-filter-list">
+                          <div className="product-facet-filter-item">
+                            <button
+                              type="button"
+                              is="toggle-button"
+                              className="collapsible-toggle text--strong"
+                              ap-controlsaria="filter.v.availability"
+                              ap-expanded-aria="true"
+                            >
+                              Availability
+                              <svg
+                                aria-hidden="true"
+                                focusable="false"
+                                role="presentation"
+                                width="8"
+                                height="6"
+                                viewBox="0 0 8 6"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="icon-chevron-down"
+                              >
+                                <path
+                                  className="icon-chevron-down-left"
+                                  d="M4 4.5L7 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                                <path
+                                  className="icon-chevron-down-right"
+                                  d="M4 4.5L1 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                              </svg>
+                            </button>
+                            <div
+                              id="filter.v.availability"
+                              className="collapsible"
+                              animate-items=""
+                              style={{ overflow: "hidden" }}
+                              open
+                            >
+                              <div className="collapsible__content">
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.v.availability"
+                                    id="filter-filter.v.availability-1"
+                                    value="1"
+                                    checked={stockFilter.in}
+                                    onChange={(e) =>
+                                      setStockFilter((prev) => ({
+                                        ...prev,
+                                        in: e.target.checked,
+                                      }))
+                                    }
+                                  />
+                                  <label for="filter-filter.v.availability-1">
+                                    In stock (27)
+                                  </label>
+                                </div>
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.v.availability"
+                                    id="filter-filter.v.availability-2"
+                                    value="0"
+                                    checked={stockFilter.out}
+                                    onChange={(e) =>
+                                      setStockFilter((prev) => ({
+                                        ...prev,
+                                        out: e.target.checked,
+                                      }))
+                                    }
+                                  />
+                                  <label for="filter-filter.v.availability-2">
+                                    Out of stock (2)
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="product-facet-filter-item">
+                            <button
+                              type="button"
+                              is="toggle-button"
+                              className="collapsible-toggle text--strong"
+                              ap-controlsaria="filter.v.price"
+                              ap-expanded-aria="true"
+                            >
+                              Price
+                              <svg
+                                aria-hidden="true"
+                                focusable="false"
+                                role="presentation"
+                                width="8"
+                                height="6"
+                                viewBox="0 0 8 6"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="icon-chevron-down"
+                              >
+                                <path
+                                  className="icon-chevron-down-left"
+                                  d="M4 4.5L7 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                                <path
+                                  className="icon-chevron-down-right"
+                                  d="M4 4.5L1 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                              </svg>
+                            </button>
+                            <ap-contentcollapsible
+                              id="filter.v.price"
+                              className="collapsible"
+                              animate-items=""
+                              style={{ overflow: "visible" }}
+                              open=""
+                            >
+                              <div className="collapsible__content">
+                                <ap-pricerange className="price-range">
+                                  <div
+                                    className="price-range-group range-group"
+                                    style={{
+                                      background: `linear-gradient(
+      to right,
+      rgb(226, 226, 226) 0%,
+      rgb(226, 226, 226) ${minPercent}%,
+      rgba(102, 102, 102, 0.7) ${minPercent}%,
+      rgba(102, 102, 102, 0.7) ${maxPercent}%,
+      rgb(226, 226, 226) ${maxPercent}%,
+      rgb(226, 226, 226) 100%
+    )`,
+                                    }}
+                                  >
+                                    <input
+                                      type="range"
+                                      aria-label="From price"
+                                      className="range"
+                                      min="0"
+                                      max="359"
+                                      value={minPrice}
+                                      onChange={(e) => {
+                                        const value = Number(e.target.value);
+
+                                        if (value >= maxPrice - minGap) return;
+
+                                        setMinPrice(value);
+                                      }}
+                                    />
+                                    <input
+                                      type="range"
+                                      aria-label="To price"
+                                      className="range"
+                                      min="0"
+                                      max="359"
+                                      value={maxPrice}
+                                      onChange={(e) => {
+                                        const value = Number(e.target.value);
+
+                                        if (value <= minPrice + minGap) return;
+
+                                        setMaxPrice(value);
+                                      }}
+                                    />
+                                  </div>
+
+                                  <div className="price-range-input-group">
+                                    <div className="price-range-input input-prefix text--xsmall">
+                                      <span className="input-prefix__value text--subdued">
+                                        $
+                                      </span>
+                                      <input
+                                        aria-label="From price"
+                                        className="input-prefix__field"
+                                        type="number"
+                                        inputMode="numeric"
+                                        value={minPrice}
+                                        onChange={(e) => {
+                                          let value = Number(e.target.value);
+
+                                          if (value < 0) value = 0;
+
+                                          if (value >= maxPrice) {
+                                            value = maxPrice - minGap;
+                                          }
+
+                                          setMinPrice(value);
+                                        }}
+                                        min="0"
+                                        max="358"
+                                        placeholder="0"
+                                      />
+                                    </div>
+
+                                    <span className="price-range-delimiter text--small">
+                                      to
+                                    </span>
+
+                                    <div className="price-range-input input-prefix text--xsmall">
+                                      <span className="input-prefix__value text--subdued">
+                                        $
+                                      </span>
+                                      <input
+                                        aria-label="To price"
+                                        className="input-prefix__field"
+                                        type="number"
+                                        inputMode="numeric"
+                                        value={maxPrice}
+                                        onChange={(e) => {
+                                          let value = Number(e.target.value);
+
+                                          if (value > priceMax) {
+                                            value = priceMax;
+                                          }
+
+                                          if (value <= minPrice) {
+                                            value = minPrice + minGap;
+                                          }
+
+                                          setMaxPrice(value);
+                                        }}
+                                        min="1"
+                                        max="359"
+                                        placeholder="359"
+                                      />
+                                    </div>
+                                  </div>
+                                </ap-pricerange>
+                              </div>
+                            </ap-contentcollapsible>
+                          </div>
+                          <div className="product-facet-filter-item">
+                            <button
+                              type="button"
+                              is="toggle-button"
+                              className="collapsible-toggle text--strong"
+                              ap-controlsaria="filter.v.option.format"
+                              ap-expanded-aria="true"
+                            >
+                              Format
+                              <svg
+                                aria-hidden="true"
+                                focusable="false"
+                                role="presentation"
+                                width="8"
+                                height="6"
+                                viewBox="0 0 8 6"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="icon-chevron-down"
+                              >
+                                <path
+                                  className="icon-chevron-down-left"
+                                  d="M4 4.5L7 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                                <path
+                                  className="icon-chevron-down-right"
+                                  d="M4 4.5L1 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                              </svg>
+                            </button>
+                            <ap-contentcollapsible
+                              id="filter.v.option.format"
+                              className="collapsible"
+                              open=""
+                              animate-items=""
+                            >
+                              <div className="collapsible__content">
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.v.option.format"
+                                    id="filter-filter.v.option.format-1"
+                                    value="Audio cd"
+                                  />
+                                  <label for="filter-filter.v.option.format-1">
+                                    Audio cd (28)
+                                  </label>
+                                </div>
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.v.option.format"
+                                    id="filter-filter.v.option.format-2"
+                                    value="Ebook"
+                                  />
+                                  <label for="filter-filter.v.option.format-2">
+                                    Ebook (28)
+                                  </label>
+                                </div>
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.v.option.format"
+                                    id="filter-filter.v.option.format-3"
+                                    value="Hardcover"
+                                  />
+                                  <label for="filter-filter.v.option.format-3">
+                                    Hardcover (28)
+                                  </label>
+                                </div>
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.v.option.format"
+                                    id="filter-filter.v.option.format-4"
+                                    value="Paperback"
+                                  />
+                                  <label for="filter-filter.v.option.format-4">
+                                    Paperback (28)
+                                  </label>
+                                </div>
+                              </div>
+                            </ap-contentcollapsible>
+                          </div>
+                          <div className="product-facet-filter-item">
+                            <button
+                              type="button"
+                              is="toggle-button"
+                              className="collapsible-toggle text--strong"
+                              ap-controlsaria="filter.p.vendor"
+                              ap-expanded-aria="true"
+                            >
+                              Brand
+                              <svg
+                                aria-hidden="true"
+                                focusable="false"
+                                role="presentation"
+                                width="8"
+                                height="6"
+                                viewBox="0 0 8 6"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="icon-chevron-down"
+                              >
+                                <path
+                                  className="icon-chevron-down-left"
+                                  d="M4 4.5L7 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                                <path
+                                  className="icon-chevron-down-right"
+                                  d="M4 4.5L1 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                              </svg>
+                            </button>
+                            <ap-contentcollapsible
+                              id="filter.p.vendor"
+                              className="collapsible"
+                              open=""
+                              animate-items=""
+                            >
+                              <div className="collapsible__content">
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.p.vendor"
+                                    id="filter-filter.p.vendor-1"
+                                    value="Ap Bokifa"
+                                  />
+                                  <label for="filter-filter.p.vendor-1">
+                                    Ap Bokifa (28)
+                                  </label>
+                                </div>
+                              </div>
+                            </ap-contentcollapsible>
+                          </div>
+                          <div className="product-facet-filter-item">
+                            <button
+                              type="button"
+                              is="toggle-button"
+                              className="collapsible-toggle text--strong"
+                              ap-controlsaria="filter.p.t.category"
+                              ap-expanded-aria="true"
+                            >
+                              Category
+                              <svg
+                                aria-hidden="true"
+                                focusable="false"
+                                role="presentation"
+                                width="8"
+                                height="6"
+                                viewBox="0 0 8 6"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="icon-chevron-down"
+                              >
+                                <path
+                                  className="icon-chevron-down-left"
+                                  d="M4 4.5L7 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                                <path
+                                  className="icon-chevron-down-right"
+                                  d="M4 4.5L1 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                              </svg>
+                            </button>
+                            <ap-contentcollapsible
+                              id="filter.p.t.category"
+                              className="collapsible"
+                              open=""
+                              animate-items=""
+                            >
+                              <div className="collapsible__content">
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.p.t.category"
+                                    id="filter-filter.p.t.category-1"
+                                    value="me-1-2"
+                                  />
+                                  <label for="filter-filter.p.t.category-1">
+                                    E-Books (28)
+                                  </label>
+                                </div>
+                              </div>
+                            </ap-contentcollapsible>
+                          </div>
+                          <div className="product-facet-filter-item">
+                            <button
+                              type="button"
+                              is="toggle-button"
+                              className="collapsible-toggle text--strong"
+                              ap-controlsaria="filter.p.m.reviews.rating_count"
+                              ap-expanded-aria="true"
+                            >
+                              Product rating count
+                              <svg
+                                aria-hidden="true"
+                                focusable="false"
+                                role="presentation"
+                                width="8"
+                                height="6"
+                                viewBox="0 0 8 6"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="icon-chevron-down"
+                              >
+                                <path
+                                  className="icon-chevron-down-left"
+                                  d="M4 4.5L7 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                                <path
+                                  className="icon-chevron-down-right"
+                                  d="M4 4.5L1 1.5"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="square"
+                                ></path>
+                              </svg>
+                            </button>
+                            <ap-contentcollapsible
+                              id="filter.p.m.reviews.rating_count"
+                              className="collapsible"
+                              open=""
+                              animate-items=""
+                            >
+                              <div className="collapsible__content">
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.p.m.reviews.rating_count"
+                                    id="filter-filter.p.m.reviews.rating_count-1"
+                                    value="1"
+                                  />
+                                  <label for="filter-filter.p.m.reviews.rating_count-1">
+                                    1 (3)
+                                  </label>
+                                </div>
+                                <div className="checkbox-container">
+                                  <input
+                                    className="checkbox"
+                                    type="checkbox"
+                                    name="filter.p.m.reviews.rating_count"
+                                    id="filter-filter.p.m.reviews.rating_count-2"
+                                    value="4"
+                                  />
+                                  <label for="filter-filter.p.m.reviews.rating_count-2">
+                                    4 (1)
+                                  </label>
+                                </div>
+                              </div>
+                            </ap-contentcollapsible>
+                          </div>
+                        </div>
+                        <noscript>
+                          <button
+                            type="submit"
+                            className="product-facet-submit button button--secondary"
+                          >
+                            Apply filters
+                          </button>
+                        </noscript>
+                      </form>
+                    </div>
+                  </ap-facetfilters>
+                </ap-safesticky>
+              </div>
+              <div id="facet-main" className="product-facet-main anchor">
+                <div className="product-facet-meta-bar anchor">
+                  <div className="mobile-facet-toolbar hide-on-desktop">
+                    <button
+                      type="button"
+                      className="mobile-filter-btn"
+                      onClick={() => setIsFilterOpen(true)}
+                      aria-label="Open filters"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                      >
+                        <path d="M15.2 3.5H12.9a.6.6 0 0 1 0-1.2h2.3a.6.6 0 0 1 0 1.2zM6.6 3.5H.8a.6.6 0 0 1 0-1.2h5.8a.6.6 0 0 1 0 1.2zM.8 8.6h1.5a.6.6 0 0 1 0-1.2H.8a.6.6 0 0 1 0 1.2zM8.7 8.6h6.5a.6.6 0 0 1 0-1.2H8.7a.6.6 0 0 1 0 1.2zM15.2 13.7H12.9a.6.6 0 0 1 0-1.2h2.3a.6.6 0 0 1 0 1.2zM6.6 13.7H.8a.6.6 0 0 1 0-1.2h5.8a.6.6 0 0 1 0 1.2zM9.7 4.8a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8zm0-2.6a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4zM9.7 15a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8zm0-2.6a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4zM5.5 9.9a1.9 1.9 0 1 1 0-3.8 1.9 1.9 0 0 1 0 3.8zm0-2.6a.7.7 0 1 0 0 1.4.7.7 0 0 0 0-1.4z" />
+                      </svg>
+                      <span>Filters</span>
+                    </button>
+                    <div className="mobile-sort-container">
+                      <button
+                        type="button"
+                        className="mobile-sort-btn"
+                        onClick={() => setIsSortOpen(!isSortOpen)}
+                      >
+                        <span>Sort by</span>
+                        <svg
+                          width="10"
+                          height="6"
+                          viewBox="0 0 10 6"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
+                          <path d="M1 1l4 4 4-4" />
+                        </svg>
+                      </button>
+                      {isSortOpen && (
+                        <div className="mobile-sort-dropdown">
+                          <button
+                            type="button"
+                            className={`mobile-sort-option ${
+                              sortBy === "manual" ? "active" : ""
+                            }`}
+                            onClick={() => {
+                              setSortBy("manual");
+                              setIsSortOpen(false);
+                            }}
+                          >
+                            Featured
+                          </button>
+                          <button
+                            type="button"
+                            className={`mobile-sort-option ${
+                              sortBy === "best-selling" ? "active" : ""
+                            }`}
+                            onClick={() => {
+                              setSortBy("best-selling");
+                              setIsSortOpen(false);
+                            }}
+                          >
+                            Best selling
+                          </button>
+                          <button
+                            type="button"
+                            className={`mobile-sort-option ${
+                              sortBy === "title-ascending" ? "active" : ""
+                            }`}
+                            onClick={() => {
+                              setSortBy("title-ascending");
+                              setIsSortOpen(false);
+                            }}
+                          >
+                            Alphabetically, A-Z
+                          </button>
+                          <button
+                            type="button"
+                            className={`mobile-sort-option ${
+                              sortBy === "title-descending" ? "active" : ""
+                            }`}
+                            onClick={() => {
+                              setSortBy("title-descending");
+                              setIsSortOpen(false);
+                            }}
+                          >
+                            Alphabetically, Z-A
+                          </button>
+                          <button
+                            type="button"
+                            className={`mobile-sort-option ${
+                              sortBy === "price-ascending" ? "active" : ""
+                            }`}
+                            onClick={() => {
+                              setSortBy("price-ascending");
+                              setIsSortOpen(false);
+                            }}
+                          >
+                            Price, low to high
+                          </button>
+                          <button
+                            type="button"
+                            className={`mobile-sort-option ${
+                              sortBy === "price-descending" ? "active" : ""
+                            }`}
+                            onClick={() => {
+                              setSortBy("price-descending");
+                              setIsSortOpen(false);
+                            }}
+                          >
+                            Price, high to low
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className="product-facet-meta-item product-facet-meta-count"
+                    role="status"
+                  >
+                    {sortedProducts.length} products
+                  </span>
+                  <div className="product-facet-meta-item product-facet-meta-sort">
+                    <span className="product-facet-sort-title text--subdued hide-on-pocket">
+                      Sort by
+                    </span>
+                    <div className="popover-container">
+                      <button
+                        type="button"
+                        id="toggle-button"
+                        className="popover-button hide-on-pocket"
+                        ap-expanded-aria="false"
+                      >
+                        <span
+                          id="sort-by-selected-value"
+                          style={{ pointerEvents: "none" }}
+                        >
+                          Alphabetically, A-Z
+                        </span>
+                        <svg
+                          focusable="false"
+                          width="12"
+                          height="8"
+                          className="icon icon--chevron icon--inline"
+                          viewBox="0 0 12 8"
+                        >
+                          <path
+                            fill="none"
+                            d="M1 1l5 5 5-5"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          ></path>
+                        </svg>
+                      </button>
+                      <ap-sortbypopover
+                        id="ap-sortbypopover"
+                        className="popover"
+                      >
+                        <span className="popover__overlay"></span>
+                        <header className="popover__header">
+                          <span className="popover__title heading h6">
+                            Sort by
+                          </span>
+                          <button
+                            type="button"
+                            className="popover__close-button tap-target tap-target-large"
+                            data-action="close"
+                            title="Close"
+                          >
+                            <svg
+                              focusable="false"
+                              width="14"
+                              height="14"
+                              className="icon icon--close"
+                              viewBox="0 0 14 14"
+                            >
+                              <path
+                                d="M13 13L1 1M13 1L1 13"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                fill="none"
+                              ></path>
+                            </svg>
+                          </button>
+                        </header>
+                        <div className="popover__content">
+                          <div className="popover__choice-list">
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="manual"
+                                checked={sortBy === "manual"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Featured
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="best-selling"
+                                checked={sortBy === "best-selling"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Best selling
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="title-ascending"
+                                checked={sortBy === "title-ascending"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Alphabetically, A-Z
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="title-descending"
+                                checked={sortBy === "title-descending"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Alphabetically, Z-A
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="price-ascending"
+                                checked={sortBy === "price-ascending"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Price, low to high
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="price-descending"
+                                checked={sortBy === "price-descending"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Price, high to low
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="date-ascending"
+                                checked={sortBy === "date-ascending"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Date, old to new
+                              </span>
+                            </label>
+                            <label className="popover__choice-item">
+                              <input
+                                type="radio"
+                                data-bind-value="sort-by-selected-value"
+                                name="sort_by"
+                                value="date-descending"
+                                checked={sortBy === "date-descending"}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="visually-hidden"
+                              />
+                              <span className="popover__choice-label">
+                                Date, new to old
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      </ap-sortbypopover>
+                    </div>
+                  </div>
+                </div>
+                <ap-productlist
+                  className="product-facet-product-list product-list anchor object-loaded"
+                  stagger-apparition
+                  style={{ opacity: "1" }}
+                >
+                  <div
+                    id="ap_productlist"
+                    className="product-list-inner"
+                    ref={productListRef}
+                  >
+                    {sortedProducts.map((product) => {
+                      const stockQuantity = Number(product.stock_quantity) || 0;
+
+                      const getImageUrl = (image) => {
+                        if (!image) return "/images/bo_pro_26.webp";
+
+                        if (
+                          image.startsWith("http://") ||
+                          image.startsWith("https://")
+                        ) {
+                          return image;
+                        }
+
+                        if (image.startsWith("/")) {
+                          return `http://localhost:5000${image}`;
+                        }
+
+                        return `http://localhost:5000/${image}`;
+                      };
+
+                      const productImage = getImageUrl(product.image);
+                      const productSecondaryImage = getImageUrl(product.image);
+
+                      return (
+                        <product-item
+                          className="slider__item"
+                          id="product-item-9713933680923"
+                          style={{ opacity: "1" }}
+                          data-format="Hardcover"
+                          data-brand="Ap Bokifa"
+                          data-category="me-1-2"
+                          data-rating="4"
+                        >
+                          <div
+                            className="product-card-bg h-100"
+                            style={{
+                              backgroundColor: "#ffffff",
+                              position: "relative",
+                            }}
+                          >
+                            <div className="product-card-inner">
+                              <span className="product-card-divider"></span>
+                              <div className="product-card-image-wrapper product-card-image-wrapper--multiple">
+                                <div className="product-card-badge-list label-list label-list-sale">
+                                  <div className="label label--highlight">
+                                    -15%
+                                  </div>
+                                </div>
+                                <a
+                                  href={`/products/${product.product_id}`} 
+                                  className="product-card-aspect-ratio aspect-ratio"
+                                  style={{
+                                    paddingBottom: "100%",
+                                    aspectRatio: "0.71",
+                                  }}
+                                >
+                                  <img
+                                    className="product-card-primary-image"
+                                    loading="eager"
+                                    src={productImage}
+                                    alt={product.title}
+                                    sizes="(min-width: 1200px) 550px, (min-width: 750px) calc((100vw - 130px)/2), calc((100vw - 50px)/2)"
+                                    width="520"
+                                    height="728"
+                                  />
+                                  <img
+                                    className="product-card-secondary-image"
+                                    loading="eager"
+                                    src={productSecondaryImage}
+                                    alt={product.title}
+                                    sizes="(min-width: 1200px) 550px, (min-width: 750px) calc((100vw - 130px)/2), calc((100vw - 50px)/2)"
+                                    width="520"
+                                    height="728"
+                                  />
+                                </a>
+                                <div title="Add to Wishlist">
+                                  <ap-wishlistbutton
+                                    className="product-action-btn wishlist-btn"
+                                    data-id={product.product_id}
+                                    onClick={() =>
+                                      toggleWishlist(product.product_id)
+                                    }
+                                  >
+                                    <div className="icon-product">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="20"
+                                        height="20"
+                                        viewBox="0 0 20 20"
+                                        fill="none"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          clipRule="evenodd"
+                                          d="M9.99381 2.87856C7.99273 1.20992 5.08354 0.891102 2.8126 2.83145C0.32332 4.95834 -0.0402306 8.54472 1.93052 11.0807C2.66674 12.028 4.09533 13.4422 5.45783 14.7282C6.83947 16.0323 8.21758 17.2643 8.89705 17.866C8.90151 17.87 8.9061 17.8741 8.91081 17.8782C8.97358 17.9339 9.0579 18.0086 9.13969 18.0702C9.23936 18.1453 9.38828 18.243 9.58926 18.3029C9.85277 18.3815 10.1357 18.3815 10.3992 18.3029C10.6002 18.243 10.7491 18.1453 10.8488 18.0702C10.9306 18.0086 11.0149 17.9339 11.0777 17.8782C11.0824 17.874 11.087 17.87 11.0914 17.866C11.7709 17.2643 13.149 16.0323 14.5307 14.7282C15.8932 13.4422 17.3218 12.028 18.058 11.0807C20.0199 8.55608 19.7144 4.9412 17.1655 2.82268C14.8714 0.915949 11.9924 1.20942 9.99381 2.87856ZM9.23432 4.9299C7.86249 3.32611 5.70788 2.98827 4.1118 4.352C2.42599 5.79239 2.20175 8.17034 3.50972 9.85343C4.13651 10.66 5.45191 11.9724 6.83064 13.2737C8.05026 14.4249 9.27051 15.5221 9.99425 16.1657C10.718 15.5221 11.9382 14.4249 13.1579 13.2737C14.5366 11.9724 15.852 10.66 16.4788 9.85343C17.7956 8.15897 17.585 5.77201 15.8871 4.36077C14.2448 2.99581 12.1185 3.33492 10.7542 4.92991C10.5642 5.15202 10.2865 5.27989 9.99425 5.27989C9.70196 5.27989 9.42431 5.15202 9.23432 4.9299Z"
+                                          fill="none"
+                                          stroke={
+                                            isWishlisted(product.product_id)
+                                              ? "#ff0000"
+                                              : "currentColor"
+                                          }
+                                        />
+                                      </svg>
+                                    </div>
+                                  </ap-wishlistbutton>
+
+                                  <span className="text-name d-none">
+                                    Add to Wishlist
+                                  </span>
+                                </div>
+                                <div className="product-action-buttons">
+                                  <div title="Quickview">
+                                    <div className="product-action-btn quickview-btn">
+                                      <div className="product-card-quick-form">
+                                        <button className="button button--outline button--text button--full">
+                                          <span className="loader-button-text">
+                                            <span className="loader-button-text">
+                                              <div className="icon-product">
+                                                <svg
+                                                  xmlns="http://www.w3.org/2000/svg"
+                                                  width="20"
+                                                  height="20"
+                                                  viewBox="0 0 20 20"
+                                                  fill="none"
+                                                >
+                                                  <path
+                                                    fill-rule="evenodd"
+                                                    clip-rule="evenodd"
+                                                    d="M5.40569 6.997C4.16878 8.02934 3.30115 9.2447 2.86227 9.93962C2.84737 9.9632 2.83498 9.98285 2.82426 9.99996C2.83498 10.0171 2.84737 10.0367 2.86227 10.0603C3.30115 10.7552 4.16878 11.9706 5.40569 13.0029C6.64025 14.0333 8.18242 14.8333 10.0003 14.8333C11.8183 14.8333 13.3604 14.0333 14.595 13.0029C15.8319 11.9706 16.6995 10.7552 17.1384 10.0603C17.1533 10.0367 17.1657 10.0171 17.1764 9.99996C17.1657 9.98285 17.1533 9.9632 17.1384 9.93962C16.6995 9.2447 15.8319 8.02934 14.595 6.997C13.3604 5.96662 11.8183 5.16663 10.0003 5.16663C8.18242 5.16663 6.64025 5.96662 5.40569 6.997ZM4.12416 5.46153C5.58338 4.24364 7.56408 3.16663 10.0003 3.16663C12.4366 3.16663 14.4173 4.24364 15.8765 5.46153C17.3334 6.67745 18.3304 8.08161 18.8294 8.87167C18.8361 8.8823 18.8431 8.8933 18.8504 8.90468C18.9481 9.05825 19.0896 9.2807 19.1606 9.59036C19.2182 9.8415 19.2182 10.1584 19.1606 10.4096C19.0896 10.7192 18.9481 10.9417 18.8504 11.0952C18.8431 11.1066 18.8361 11.1176 18.8294 11.1282C18.3304 11.9183 17.3334 13.3225 15.8765 14.5384C14.4173 15.7563 12.4366 16.8333 10.0003 16.8333C7.56408 16.8333 5.58339 15.7563 4.12416 14.5384C2.66729 13.3225 1.67023 11.9183 1.17127 11.1282C1.16455 11.1176 1.15755 11.1066 1.15031 11.0952C1.05259 10.9417 0.911025 10.7192 0.840047 10.4096C0.782484 10.1584 0.782484 9.8415 0.840047 9.59036C0.911026 9.2807 1.05259 9.05825 1.15031 8.90468C1.15755 8.8933 1.16455 8.8823 1.17127 8.87167C1.67023 8.08161 2.66729 6.67745 4.12416 5.46153ZM10.0003 8.49996C9.17191 8.49996 8.50034 9.17153 8.50034 9.99996C8.50034 10.8284 9.17191 11.5 10.0003 11.5C10.8288 11.5 11.5003 10.8284 11.5003 9.99996C11.5003 9.17153 10.8288 8.49996 10.0003 8.49996ZM6.50034 9.99996C6.50034 8.06696 8.06734 6.49996 10.0003 6.49996C11.9333 6.49996 13.5003 8.06696 13.5003 9.99996C13.5003 11.933 11.9333 13.5 10.0003 13.5C8.06734 13.5 6.50034 11.933 6.50034 9.99996Z"
+                                                    fill="currentColor"
+                                                  ></path>
+                                                </svg>
+                                              </div>
+                                            </span>
+                                            <span
+                                              className="loader-button-spinner"
+                                              hidden=""
+                                            >
+                                              <div className="spinner">
+                                                <svg
+                                                  focusable="false"
+                                                  width="24"
+                                                  height="24"
+                                                  className="icon icon--spinner"
+                                                  viewBox="25 25 50 50"
+                                                >
+                                                  <circle
+                                                    cx="50"
+                                                    cy="50"
+                                                    r="20"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="5"
+                                                  ></circle>
+                                                </svg>
+                                              </div>
+                                            </span>
+                                          </span>
+                                          <span
+                                            className="loader-button-spinner"
+                                            hidden=""
+                                          >
+                                            <div className="spinner">
+                                              <svg
+                                                focusable="false"
+                                                width="24"
+                                                height="24"
+                                                className="icon icon--spinner"
+                                                viewBox="25 25 50 50"
+                                              >
+                                                <circle
+                                                  cx="50"
+                                                  cy="50"
+                                                  r="20"
+                                                  fill="none"
+                                                  stroke="currentColor"
+                                                  stroke-width="5"
+                                                ></circle>
+                                              </svg>
+                                            </div>
+                                          </span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <span className="text-name">
+                                      Quick view
+                                    </span>
+                                  </div>
+                                  <div title="Add to Conpare">
+                                    <ap-comparebutton className="product-action-btn compare-btn">
+                                      <div className="icon-product">
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          width="20"
+                                          height="20"
+                                          viewBox="0 0 20 20"
+                                          fill="none"
+                                        >
+                                          <path
+                                            fill-rule="evenodd"
+                                            clip-rule="evenodd"
+                                            d="M8.74408 1.2442C9.06952 0.918763 9.59715 0.918763 9.92259 1.2442L12.4226 3.7442C12.748 4.06964 12.748 4.59727 12.4226 4.92271L9.92259 7.42271C9.59715 7.74815 9.06952 7.74815 8.74408 7.42271C8.41864 7.09727 8.41864 6.56964 8.74408 6.2442L9.82149 5.16679H7.66667C4.90524 5.16679 2.66667 7.40537 2.66667 10.1668C2.66667 12.1601 3.83306 13.8827 5.52424 14.686C5.93996 14.8835 6.11687 15.3806 5.91938 15.7963C5.7219 16.2121 5.2248 16.389 4.80909 16.1915C2.5587 15.1224 1 12.8275 1 10.1668C1 6.48489 3.98477 3.50012 7.66667 3.50012H9.82149L8.74408 2.42271C8.41864 2.09727 8.41864 1.56964 8.74408 1.2442ZM14.414 4.53724C14.6114 4.12152 15.1085 3.94461 15.5242 4.1421C17.7746 5.21114 19.3333 7.50611 19.3333 10.1668C19.3333 13.8487 16.3486 16.8335 12.6667 16.8335H10.5118L11.5893 17.9109C11.9147 18.2363 11.9147 18.7639 11.5893 19.0894C11.2638 19.4148 10.7362 19.4148 10.4107 19.0894L7.91074 16.5894C7.58531 16.2639 7.58531 15.7363 7.91074 15.4109L10.4107 12.9109C10.7362 12.5854 11.2638 12.5854 11.5893 12.9109C11.9147 13.2363 11.9147 13.7639 11.5893 14.0894L10.5118 15.1668H12.6667C15.4281 15.1668 17.6667 12.9282 17.6667 10.1668C17.6667 8.17347 16.5003 6.45093 14.8091 5.64753C14.3934 5.45005 14.2165 4.95295 14.414 4.53724Z"
+                                            fill="currentColor"
+                                          ></path>
+                                        </svg>
+                                      </div>
+                                    </ap-comparebutton>
+                                    <span className="text-name">
+                                      Add to compare
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="product-card-info">
+                                <div className="product-card-meta">
+                                  <div
+                                    className="review-widget review-preview-badge review-preview-badge--with-link review-done-setup"
+                                    data-widget-name="preview_badge"
+                                    data-impressions-tracked="true"
+                                    data-views-tracked="true"
+                                  >
+                                    <div
+                                      style={{ display: "none" }}
+                                      className="review-summary-badge"
+                                      data-average-rating="0.00"
+                                      data-number-of-reviews="0"
+                                      data-number-of-questions="0"
+                                    >
+                                      <span
+                                        className="review-summary-stars"
+                                        data-score="0.00"
+                                        tabindex="0"
+                                        aria-label="0.00 stars"
+                                        role="button"
+                                      >
+                                        <span className="review-star review-star-empty"></span>
+                                        <span className="review-star review-star-empty"></span>
+                                        <span className="review-star review-star-empty"></span>
+                                        <span className="review-star review-star-empty"></span>
+                                        <span className="review-star review-star-empty"></span>
+                                      </span>
+                                      <span className="review-summary-count">
+                                        (0)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <Link
+                                    to={`/products/${product.product_id}`}
+                                    className="product-card-title mb-1"
+                                  >
+                                    {product.title}
+                                  </Link>
+                                  <div className="product-author my-2">
+                                    <span>{product.author || ""}</span>
+                                  </div>
+                                  <div className="product-description d-none">
+                                    {product.description || ""}
+                                  </div>
+                                  <div className="product-price">
+                                    <div className="product-card-price-container">
+                                      <div className="price-list">
+                                        <span className="price">
+                                          <span className="visually-hidden">
+                                            regular price
+                                          </span>
+                                          ₹
+                                          {Number(product.price || 0).toFixed(
+                                            2,
+                                          )}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="product-card-quantity">
+                                    <div className="product-add-cart-action w-100">
+                                      <div
+                                        title="Add to cart"
+                                        className="product-action-btn add-to-cart-btn"
+                                      >
+                                        <form
+                                          id={`product-form-${product.product_id}`}
+                                          className="product-card-form"
+                                          onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            if (stockQuantity <= 0) return;
+                                            try {
+                                              await addToCart(product.product_id, 1);
+                                            } catch (error) {
+                                              console.error("Add To Cart Error:", error);
+                                            }
+                                          }}
+                                        >
+                                          <button
+                                            type="submit"
+                                            className="button button--outline button--text button--full"
+                                            disabled={stockQuantity <= 0}
+                                          >
+                                            <span className="loader-button-text">
+                                              <span className="loader-button-text">
+                                                <div className="icon-product">
+                                                  <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    width="9"
+                                                    height="8"
+                                                    viewBox="0 0 9 8"
+                                                    fill="none"
+                                                  >
+                                                    <path
+                                                      d="M3.5 0H5.5V8H3.5V0Z"
+                                                      fill="currentColor"
+                                                    ></path>
+                                                    <path
+                                                      d="M0.5 5L0.5 3L8.5 3V5L0.5 5Z"
+                                                      fill="currentColor"
+                                                    ></path>
+                                                  </svg>
+                                                </div>
+                                                {stockQuantity > 0
+                                                  ? "Add to cart"
+                                                  : "Sold out"}
+                                              </span>
+                                              <span
+                                                className="loader-button-spinner"
+                                                hidden=""
+                                              >
+                                                <div className="spinner">
+                                                  <svg
+                                                    focusable="false"
+                                                    width="24"
+                                                    height="24"
+                                                    className="icon icon--spinner"
+                                                    viewBox="25 25 50 50"
+                                                  >
+                                                    <circle
+                                                      cx="50"
+                                                      cy="50"
+                                                      r="20"
+                                                      fill="none"
+                                                      stroke="currentColor"
+                                                      stroke-width="5"
+                                                    ></circle>
+                                                  </svg>
+                                                </div>
+                                              </span>
+                                            </span>
+                                            <span
+                                              className="loader-button-spinner"
+                                              hidden=""
+                                            >
+                                              <div className="spinner">
+                                                <svg
+                                                  focusable="false"
+                                                  width="25"
+                                                  height="25"
+                                                  className="icon icon--spinner"
+                                                  viewBox="25 25 50 50"
+                                                >
+                                                  <circle
+                                                    cx="50"
+                                                    cy="50"
+                                                    r="20"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="4"
+                                                  ></circle>
+                                                </svg>
+                                              </div>
+                                            </span>
+                                          </button>
+                                          <button
+                                            type="submit"
+                                            className="product-card-quick-buy-btn hide-on-no-touch"
+                                          >
+                                            <span className="visually-hidden">
+                                              <div className="icon-product">
+                                                <svg
+                                                  xmlns="http://www.w3.org/2000/svg"
+                                                  width="9"
+                                                  height="8"
+                                                  viewBox="0 0 9 8"
+                                                  fill="none"
+                                                >
+                                                  <path
+                                                    d="M3.5 0H5.5V8H3.5V0Z"
+                                                    fill="currentColor"
+                                                  ></path>
+                                                  <path
+                                                    d="M0.5 5L0.5 3L8.5 3V5L0.5 5Z"
+                                                    fill="currentColor"
+                                                  ></path>
+                                                </svg>
+                                              </div>
+                                            </span>
+                                            <svg
+                                              focusable="false"
+                                              width="22"
+                                              height="21"
+                                              className="icon icon--quick-buy"
+                                              fill="none"
+                                              viewBox="0 0 22 21"
+                                            >
+                                              <path
+                                                d="M12 4H3L2 20H18C17.7517 16.0273 17.375 10 17.375 10"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                              ></path>
+                                              <path
+                                                d="M7 7V7C7 8.65685 8.34315 10 10 10V10C11.6569 10 13 8.65685 13 7V7"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                              ></path>
+                                              <path
+                                                d="M18 0V8M14 4H22"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                              ></path>
+                                            </svg>
+                                          </button>
+                                        </form>
+                                      </div>
+                                      <span className="text-name">
+                                        {" "}
+                                        Add to cart{" "}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </product-item>
+                      );
+                    })}
+                  </div>
+                </ap-productlist>
+                <div className="pagination-wrapper">
+                  <nav className="pagination" role="navigation">
+                    <ul className="pagination__list list-unstyled">
+                      <li>
+                        <a
+                          className={`pagination__item ${
+                            currentPage === 1
+                              ? "pagination__item--current light"
+                              : "link"
+                          }`}
+                          aria-label="Page 1"
+                          onClick={() => {
+                            setSearchParams({});
+                          }}
+                        >
+                          1
+                        </a>
+                      </li>
+
+                      <li>
+                        <a
+                          className={`pagination__item ${
+                            currentPage === 2
+                              ? "pagination__item--current light"
+                              : "link"
+                          }`}
+                          aria-label="Page 2"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => {
+                            setSearchParams({ page: "2" });
+                          }}
+                        >
+                          2
+                        </a>
+                      </li>
+
+                      <li>
+                        <a
+                          className="pagination__item pagination__item--prev pagination__item-arrow link motion-reduce"
+                          aria-label="next-page"
+                          onClick={() => {
+                            setSearchParams({ page: "2" });
+                          }}
+                        >
+                          <svg
+                            aria-hidden="true"
+                            focusable="false"
+                            role="presentation"
+                            className="icon icon-caret"
+                            viewBox="0 0 10 6"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              clipRule="evenodd"
+                              d="M9.354.646a.5.5 0 00-.708 0L5 4.293 1.354.646a.5.5 0 00-.708.708l4 4a.5.5 0 00.708 0l4-4a.5.5 0 000-.708z"
+                              fill="currentColor"
+                            ></path>
+                          </svg>
+                        </a>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+              </div>
+            </ap-productfacet>
+          </div>
+        </section>
+      </div>
+
+      <div style={{ border: "0.5px solid #eae6e6" }}></div>
+      <NewsLetter />
+      <Footer />
+    </>
+  );
+};
+export default ShopPage;
