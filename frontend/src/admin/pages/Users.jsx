@@ -119,7 +119,7 @@ const Users = () => {
       if (res.success) {
         addToast(
           `User "${selectedUser.name}" ${nextStatus ? "activated" : "deactivated"} successfully.`,
-          "success"
+          "success",
         );
         fetchUsersList();
       } else {
@@ -129,7 +129,7 @@ const Users = () => {
       console.error(err);
       addToast(
         err.response?.data?.message || "Failed to update user status.",
-        "error"
+        "error",
       );
     } finally {
       setUpdating(false);
@@ -144,7 +144,11 @@ const Users = () => {
 
       <ConfirmModal
         isOpen={statusModalOpen}
-        title={selectedUser?.is_active ? "Deactivate User Account" : "Activate User Account"}
+        title={
+          selectedUser?.is_active
+            ? "Deactivate User Account"
+            : "Activate User Account"
+        }
         message={`Are you sure you want to ${
           selectedUser?.is_active ? "deactivate" : "activate"
         } account for "${selectedUser?.name}" (${selectedUser?.email})?`}
@@ -209,7 +213,10 @@ const Users = () => {
             <i className="fa-solid fa-triangle-exclamation me-2"></i>
             {error}
           </div>
-          <button className="btn btn-sm btn-outline-danger" onClick={fetchUsersList}>
+          <button
+            className="btn btn-sm btn-outline-danger"
+            onClick={fetchUsersList}
+          >
             Retry
           </button>
         </div>
@@ -244,7 +251,10 @@ const Users = () => {
                     <td className="fw-bold text-secondary">#{u.id}</td>
                     <td>
                       <div className="d-flex align-items-center gap-3">
-                        <div className="avatar-sm rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold" style={{ width: "38px", height: "38px" }}>
+                        <div
+                          className="avatar-sm rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold"
+                          style={{ width: "38px", height: "38px" }}
+                        >
                           {u.name ? u.name.charAt(0).toUpperCase() : "U"}
                         </div>
                         <div>
@@ -262,11 +272,15 @@ const Users = () => {
                       <StatusBadge status={u.role} />
                     </td>
                     <td>
-                      <StatusBadge status={u.is_active !== undefined ? u.is_active : true} />
+                      <StatusBadge
+                        status={u.is_active !== undefined ? u.is_active : true}
+                      />
                     </td>
                     <td className="text-muted small">
                       {u.createdAt || u.created_at
-                        ? new Date(u.createdAt || u.created_at).toLocaleDateString("en-IN", {
+                        ? new Date(
+                            u.createdAt || u.created_at,
+                          ).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
@@ -286,7 +300,9 @@ const Users = () => {
                         <button
                           type="button"
                           className={`btn ${
-                            u.is_active ? "btn-outline-danger" : "btn-outline-success"
+                            u.is_active
+                              ? "btn-outline-danger"
+                              : "btn-outline-success"
                           }`}
                           title={u.is_active ? "Deactivate" : "Activate"}
                           onClick={() => handleOpenStatusModal(u)}
@@ -308,7 +324,10 @@ const Users = () => {
 
         {pagination && (
           <div className="p-3">
-            <Pagination pagination={pagination} onPageChange={handlePageChange} />
+            <Pagination
+              pagination={pagination}
+              onPageChange={handlePageChange}
+            />
           </div>
         )}
       </div>

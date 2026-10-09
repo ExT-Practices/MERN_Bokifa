@@ -114,7 +114,7 @@ const Categories = () => {
           `Category "${categoryName}" ${
             editingCategory ? "updated" : "created"
           } successfully.`,
-          "success"
+          "success",
         );
         setModalOpen(false);
         fetchCategoryList();
@@ -123,9 +123,7 @@ const Categories = () => {
       }
     } catch (err) {
       console.error("Save category error:", err);
-      setFormError(
-        err.response?.data?.message || "Failed to save category."
-      );
+      setFormError(err.response?.data?.message || "Failed to save category.");
     } finally {
       setSaving(false);
     }
@@ -146,7 +144,7 @@ const Categories = () => {
       if (res.success) {
         addToast(
           `Category "${selectedForDelete.name}" deactivated successfully.`,
-          "success"
+          "success",
         );
         fetchCategoryList();
       } else {
@@ -172,7 +170,7 @@ const Categories = () => {
       if (res.success) {
         addToast(
           `Category "${cat.name}" is now ${newStatus ? "Active" : "Inactive"}.`,
-          "success"
+          "success",
         );
         fetchCategoryList();
       } else {
@@ -186,7 +184,7 @@ const Categories = () => {
 
   // Filtered categories
   const filteredCategories = categories.filter((cat) =>
-    cat.name.toLowerCase().includes(searchTerm.toLowerCase().trim())
+    cat.name.toLowerCase().includes(searchTerm.toLowerCase().trim()),
   );
 
   return (
@@ -206,11 +204,19 @@ const Categories = () => {
 
       {/* Category Create/Edit Modal */}
       {modalOpen && (
-        <div className="admin-modal-backdrop" onClick={() => setModalOpen(false)}>
-          <div className="admin-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-bottom d-flex align-items-center justify-content-between">
+        <div
+          className="admin-modal-backdrop"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="admin-modal-dialog"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="admin-modal-header">
               <h5 className="m-0 font-weight-bold text-dark">
-                {editingCategory ? `Edit Category #${editingCategory.category_id}` : "Add New Category"}
+                {editingCategory
+                  ? `Edit Category #${editingCategory.category_id}`
+                  : "Add New Category"}
               </h5>
               <button
                 type="button"
@@ -220,9 +226,11 @@ const Categories = () => {
             </div>
 
             <form onSubmit={handleSaveCategory}>
-              <div className="p-4">
+              <div className="admin-modal-body">
                 {formError && (
-                  <div className="alert alert-danger small mb-3">{formError}</div>
+                  <div className="alert alert-danger small mb-3">
+                    {formError}
+                  </div>
                 )}
 
                 <div className="mb-3">
@@ -248,14 +256,17 @@ const Categories = () => {
                       checked={categoryActive}
                       onChange={(e) => setCategoryActive(e.target.checked)}
                     />
-                    <label className="form-check-label font-weight-bold text-dark ms-2" htmlFor="catActiveSwitch">
+                    <label
+                      className="form-check-label font-weight-bold text-dark ms-2"
+                      htmlFor="catActiveSwitch"
+                    >
                       Active Status
                     </label>
                   </div>
                 )}
               </div>
 
-              <div className="p-3 bg-light d-flex justify-content-end gap-2 border-top">
+              <div className="admin-modal-footer justify-content-end gap-2">
                 <button
                   type="button"
                   className="btn btn-outline-secondary px-4"
@@ -289,7 +300,8 @@ const Categories = () => {
         <div>
           <h1 className="admin-page-title">Category Management</h1>
           <p className="admin-page-subtitle">
-            Organize bookstore catalog categories for fiction, non-fiction, new releases, etc.
+            Organize bookstore catalog categories for fiction, non-fiction, new
+            releases, etc.
           </p>
         </div>
         <div>
@@ -330,7 +342,10 @@ const Categories = () => {
             <i className="fa-solid fa-triangle-exclamation me-2"></i>
             {error}
           </div>
-          <button className="btn btn-sm btn-outline-danger" onClick={fetchCategoryList}>
+          <button
+            className="btn btn-sm btn-outline-danger"
+            onClick={fetchCategoryList}
+          >
             Retry
           </button>
         </div>
@@ -361,7 +376,9 @@ const Categories = () => {
               ) : (
                 filteredCategories.map((cat) => (
                   <tr key={cat.category_id}>
-                    <td className="fw-bold text-secondary">#{cat.category_id}</td>
+                    <td className="fw-bold text-secondary">
+                      #{cat.category_id}
+                    </td>
                     <td>
                       <div className="fw-bold text-dark">{cat.name}</div>
                     </td>
@@ -370,7 +387,9 @@ const Categories = () => {
                     </td>
                     <td className="text-muted small">
                       {cat.createdAt || cat.created_at
-                        ? new Date(cat.createdAt || cat.created_at).toLocaleDateString("en-IN", {
+                        ? new Date(
+                            cat.createdAt || cat.created_at,
+                          ).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
@@ -391,7 +410,9 @@ const Categories = () => {
                         <button
                           type="button"
                           className={`btn ${
-                            cat.is_active ? "btn-outline-warning" : "btn-outline-success"
+                            cat.is_active
+                              ? "btn-outline-warning"
+                              : "btn-outline-success"
                           }`}
                           title={cat.is_active ? "Deactivate" : "Activate"}
                           onClick={() => handleToggleCategoryStatus(cat)}

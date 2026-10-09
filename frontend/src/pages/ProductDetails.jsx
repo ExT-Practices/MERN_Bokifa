@@ -7,21 +7,171 @@ import api from "../api/axios";
 import { DETAILS, DETAILSss } from "../data/ProductsData";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
+import { useAccount } from "../account/context/AccountContext";
+import {
+  getProductReviews,
+  submitProductReview,
+  getMyProductReview,
+} from "../api/reviewApi";
+
 const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const { addToCart } = useCart();
-
   const { isWishlisted, toggleWishlist, wishlistUpdatingId } = useWishlist();
-
+  const { user, isLoggedIn } = useAccount();
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
   const [selectedFormat, setSelectedFormat] = useState("Hardcover");
   const [activeTab, setActiveTab] = useState("description");
+
+  const toggleProductTab = (tab) => {
+    setActiveTab((prev) => (prev === tab ? "" : tab));
+  };
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Customer reviews states
+  const [reviews, setReviews] = useState([]);
+  const [reviewMeta, setReviewMeta] = useState({
+    averageRating: 0,
+    totalReviews: 0,
+    ratingCounts: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+    ratingPercentages: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 },
+  });
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [userReview, setUserReview] = useState(null);
+  const [userHasReviewed, setUserHasReviewed] = useState(false);
+
+  // Review submission form states
+  const [reviewRating, setReviewRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewTitle, setReviewTitle] = useState("");
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState({
+    type: "",
+    message: "",
+  });
+  const [reviewSort, setReviewSort] = useState("most-recent");
+  const [showLoginNotice, setShowLoginNotice] = useState(false);
+
+  const fetchReviews = async () => {
+    if (!id) return;
+    try {
+      setLoadingReviews(true);
+      const res = await getProductReviews(id);
+      if (res?.success) {
+        setReviews(res.data || []);
+        if (res.meta) {
+          setReviewMeta(res.meta);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load reviews:", err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const checkUserReview = async () => {
+    if (!id || !isLoggedIn) {
+      setUserHasReviewed(false);
+      setUserReview(null);
+      return;
+    }
+    try {
+      const res = await getMyProductReview(id);
+      if (res?.success) {
+        setUserHasReviewed(Boolean(res.hasReviewed));
+        setUserReview(res.review || null);
+      }
+    } catch (err) {
+      console.error("Failed to check user review:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (id) {
+      fetchReviews();
+      checkUserReview();
+    }
+  }, [id, isLoggedIn]);
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    setReviewFeedback({ type: "", message: "" });
+
+    if (!isLoggedIn) {
+      setShowLoginNotice(true);
+      return;
+    }
+
+    if (!reviewRating || reviewRating < 1 || reviewRating > 5) {
+      setReviewFeedback({
+        type: "danger",
+        message: "Please select a star rating (1 to 5).",
+      });
+      return;
+    }
+
+    if (!reviewTitle.trim()) {
+      setReviewFeedback({
+        type: "danger",
+        message: "Please enter a review title.",
+      });
+      return;
+    }
+
+    if (!reviewComment.trim()) {
+      setReviewFeedback({
+        type: "danger",
+        message: "Please enter your review comments.",
+      });
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      const res = await submitProductReview(id, {
+        rating: reviewRating,
+        title: reviewTitle.trim(),
+        comment: reviewComment.trim(),
+      });
+
+      if (res?.success) {
+        setReviewFeedback({
+          type: "success",
+          message:
+            "Review submitted successfully. It will appear after approval.",
+        });
+        setReviewTitle("");
+        setReviewComment("");
+        setReviewRating(5);
+        setUserHasReviewed(true);
+        setUserReview(res.data || { status: "pending" });
+        setShowReviewForm(false);
+      } else {
+        setReviewFeedback({
+          type: "danger",
+          message: res?.message || "Failed to submit review.",
+        });
+      }
+    } catch (err) {
+      console.error("Submit Review Error:", err);
+      const errMsg =
+        err.response?.data?.message ||
+        "Failed to submit review. Please try again.";
+      setReviewFeedback({
+        type: "danger",
+        message: errMsg,
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -150,7 +300,7 @@ const ProductDetails = () => {
       <Header />
       <section
         id="shopify-section-template--23597517013275__main"
-        class="site-section section main-product-section"
+        className="site-section section main-product-section"
       >
         <section>
           <style>
@@ -295,7 +445,7 @@ const ProductDetails = () => {
     margin-bottom: 23px;
     text-align: center;
     flex-wrap: wrap;
-    gap: 22px;
+    gap: 35px;
     border-bottom: 1px solid rgb(var(--border-color));
   }
   .btn-variation {
@@ -421,9 +571,6 @@ const ProductDetails = () => {
     .product__info {
       width: 100%;
     }
-    .product-tabs__tab-item-wrapper[hidden] {
-      display: none!important;
-    }
     .quantity_wrapper {
       flex-wrap: wrap;
     }
@@ -439,10 +586,10 @@ const ProductDetails = () => {
         margin-bottom: 5px;
     }`}
             </style>
-            <nav aria-label="Breadcrumb" class="breadcrumb text--xsmall">
-              <ol class="breadcrumb__list" role="list">
-                <li class="breadcrumb__item">
-                  <a class="breadcrumb__link" href="/">
+            <nav aria-label="Breadcrumb" className="breadcrumb text--xsmall">
+              <ol className="breadcrumb__list" role="list">
+                <li className="breadcrumb__item">
+                  <a className="breadcrumb__link" href="/">
                     <svg
                       aria-hidden="true"
                       focusable="false"
@@ -451,21 +598,20 @@ const ProductDetails = () => {
                       role="img"
                       xmlns="http://www.w3.org/2000/svg"
                       viewBox="0 0 576 512"
-                      class="icon icon-home"
+                      className="icon icon-home"
                     >
                       <path
                         fill="currentColor"
                         d="M541 229.16l-61-49.83v-77.4a6 6 0 0 0-6-6h-20a6 6 0 0 0-6 6v51.33L308.19 39.14a32.16 32.16 0 0 0-40.38 0L35 229.16a8 8 0 0 0-1.16 11.24l10.1 12.41a8 8 0 0 0 11.2 1.19L96 220.62v243a16 16 0 0 0 16 16h128a16 16 0 0 0 16-16v-128l64 .3V464a16 16 0 0 0 16 16l128-.33a16 16 0 0 0 16-16V220.62L520.86 254a8 8 0 0 0 11.25-1.16l10.1-12.41a8 8 0 0 0-1.21-11.27zm-93.11 218.59h.1l-96 .3V319.88a16.05 16.05 0 0 0-15.95-16l-96-.27a16 16 0 0 0-16.05 16v128.14H128V194.51L288 63.94l160 130.57z"
-                        class=""
                       ></path>
                     </svg>
                     Home
                   </a>
                 </li>
 
-                <li class="breadcrumb__item">
+                <li className="breadcrumb__item">
                   <span
-                    class="breadcrumb__link"
+                    className="breadcrumb__link"
                     ap-currentaria="page"
                     style={{ color: "#666" }}
                   >
@@ -743,40 +889,59 @@ const ProductDetails = () => {
                         id="shopify-block-ARlhFdlhwemVXdWVpN__judge_me_reviews_preview_badge_jM7Dxx"
                         className="theme-block app-block"
                         data-block-handle="preview_badge"
+                        style={{ cursor: "pointer", marginBottom: "12px" }}
+                        onClick={() => {
+                          setActiveTab("reviews");
+                          const el = document.getElementById(
+                            "block-AaVhUbEdMRFUyU3o0b__judge_me_reviews_review_widget_WH7V8q",
+                          );
+                          if (el) {
+                            el.scrollIntoView({ behavior: "smooth" });
+                          }
+                        }}
                       >
                         <div
                           className="review-widget review-preview-badge review-preview-badge--with-link review-done-setup"
-                          data-id="9713931944219"
-                          data-template="manual-installation"
                           data-widget-name="preview_badge"
-                          data-impressions-tracked="true"
-                          data-views-tracked="true"
                         >
-                          <div
-                            style={{ display: "none" }}
-                            className="review-summary-badge"
-                            data-average-rating="0.00"
-                            data-number-of-reviews="0"
-                            data-number-of-questions="0"
-                          >
-                            {" "}
+                          <div className="review-summary-badge d-flex align-items-center gap-2">
                             <span
-                              className="review-summary-stars"
-                              data-score="0.00"
+                              className="review-summary-stars d-inline-flex align-items-center"
                               tabIndex="0"
                               aria-label="See all reviews"
                               role="button"
                             >
-                              {" "}
-                              <span className="review-star review-star-empty"></span>
-                              <span className="review-star review-star-empty"></span>
-                              <span className="review-star review-star-empty"></span>
-                              <span className="review-star review-star-empty"></span>
-                              <span className="review-star review-star-empty"></span>{" "}
-                            </span>{" "}
-                            <span className="review-summary-count">
-                              (0)
-                            </span>{" "}
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <i
+                                  key={s}
+                                  className={
+                                    reviewMeta.averageRating >= s
+                                      ? "ri-star-fill"
+                                      : reviewMeta.averageRating >= s - 0.5
+                                        ? "ri-star-half-fill"
+                                        : "ri-star-line"
+                                  }
+                                  style={{
+                                    fontSize: "16px",
+                                    color:
+                                      reviewMeta.averageRating >= s - 0.5
+                                        ? "#f59e0b"
+                                        : "#ccc",
+                                    marginRight: "2px",
+                                  }}
+                                ></i>
+                              ))}
+                            </span>
+                            <span
+                              className="review-summary-count text-muted"
+                              style={{ fontSize: "14px" }}
+                            >
+                              ({reviewMeta.totalReviews}{" "}
+                              {reviewMeta.totalReviews === 1
+                                ? "review"
+                                : "reviews"}
+                              )
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -850,7 +1015,7 @@ const ProductDetails = () => {
                               <span className="visually-hidden">
                                 Regular price
                               </span>
-                              ${Number(product.price).toFixed(2)}
+                              ₹{Number(product.price).toFixed(2)}
                             </span>
                           </span>
                         </div>
@@ -1565,17 +1730,11 @@ const ProductDetails = () => {
                           Fiction,
                         </a>
 
-                        <a
-                          className="product-category-link"
-                          href="kids-books"
-                        >
+                        <a className="product-category-link" href="kids-books">
                           Kids Books,
                         </a>
 
-                        <a
-                          className="product-category-link"
-                          href="non-fiction"
-                        >
+                        <a className="product-category-link" href="non-fiction">
                           Non Fiction
                         </a>
                       </div>
@@ -2075,27 +2234,29 @@ const ProductDetails = () => {
     width: 100%;
   }
 }`}</style>
-        <section class="container">
-          <div class="wp-product-content">
+        <section className="container">
+          <div className="wp-product-content">
             <div
               id="product-9713931944219-content"
-              class="product-content anchor"
+              className="product-content anchor"
             >
               <div
-                class="product-content__tabs anchor"
+                className="product-content__tabs anchor"
                 id="product-9713931944219-tabs"
               >
-                <div class="product-tabs">
+                <div className="product-tabs">
                   <ap-navtabs
                     arrows=""
-                    class="nav-tabs-wrapper nav-tabs-wrapper--loose hide-on-pocket"
+                    className="nav-tabs-wrapper nav-tabs-wrapper--loose hide-on-pocket"
                   >
-                    <ap-scrollablecontent class="nav-tabs-scroller hide-scrollbar">
-                      <div class="nav-tabs-scroller-inner">
-                        <div class="nav-tabs-item-list">
+                    <ap-scrollablecontent className="nav-tabs-scroller hide-scrollbar">
+                      <div className="nav-tabs-scroller-inner">
+                        <div className="nav-tabs-item-list">
                           <button
                             type="button"
-                            class="nav-tabs-item heading heading--small"
+                            className={`nav-tabs-item heading heading--small ${
+                              activeTab === "description" ? "is-active" : ""
+                            }`}
                             ap-expanded-aria={
                               activeTab === "description" ? "true" : "false"
                             }
@@ -2106,7 +2267,9 @@ const ProductDetails = () => {
                           </button>
                           <button
                             type="button"
-                            class="nav-tabs-item heading heading--small"
+                            className={`nav-tabs-item heading heading--small ${
+                              activeTab === "additional" ? "is-active" : ""
+                            }`}
                             ap-expanded-aria={
                               activeTab === "additional" ? "true" : "false"
                             }
@@ -2117,18 +2280,23 @@ const ProductDetails = () => {
                           </button>
                           <button
                             type="button"
-                            class="nav-tabs-item heading heading--small"
+                            className={`nav-tabs-item heading heading--small ${
+                              activeTab === "reviews" ? "is-active" : ""
+                            }`}
                             ap-expanded-aria={
                               activeTab === "reviews" ? "true" : "false"
                             }
                             ap-controlsaria="block-AaVhUbEdMRFUyU3o0b__judge_me_reviews_review_widget_WH7V8q"
                             onClick={() => setActiveTab("reviews")}
                           >
-                            Reviews
+                            Reviews{" "}
+                            {reviewMeta.totalReviews > 0
+                              ? `(${reviewMeta.totalReviews})`
+                              : ""}
                           </button>
                         </div>
                         <span
-                          class="nav-tabs-position is-initialized"
+                          className="nav-tabs-position is-initialized"
                           style={{
                             "--scale": " 0.13161875945537066",
                             " --translate": "198.85057471264366%",
@@ -2136,36 +2304,36 @@ const ProductDetails = () => {
                         ></span>
                       </div>
                     </ap-scrollablecontent>
-                    <div class="nav-tabs-arrows">
-                      <button class="nav-tabs-arrow-item">
-                        <span class="visually-hidden">Previous</span>
+                    <div className="nav-tabs-arrows">
+                      <button className="nav-tabs-arrow-item">
+                        <span className="visually-hidden">Previous</span>
                         <svg
                           focusable="false"
                           width="6"
                           height="9"
-                          class="icon icon--product-tab-left  icon--direction-aware "
+                          className="icon icon--product-tab-left  icon--direction-aware "
                           viewBox="0 0 6 9"
                         >
                           <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
+                            fillRule="evenodd"
+                            clipRule="evenodd"
                             d="M2.554 4.5L6 1.054 4.946 0l-4.5 4.5 4.5 4.5L6 7.946 2.554 4.5z"
                             fill="currentColor"
                           ></path>
                         </svg>
                       </button>
-                      <button class="nav-tabs-arrow-item">
-                        <span class="visually-hidden">Next</span>
+                      <button className="nav-tabs-arrow-item">
+                        <span className="visually-hidden">Next</span>
                         <svg
                           focusable="false"
                           width="6"
                           height="9"
-                          class="icon icon--product-tab-right  icon--direction-aware "
+                          className="icon icon--product-tab-right  icon--direction-aware "
                           viewBox="0 0 6 9"
                         >
                           <path
-                            fill-rule="evenodd"
-                            clip-rule="evenodd"
+                            fillRule="evenodd"
+                            clipRule="evenodd"
                             d="M3.446 4.5L0 1.054 1.054 0l4.5 4.5-4.5 4.5L0 7.946 3.446 4.5z"
                             fill="currentColor"
                           ></path>
@@ -2173,78 +2341,71 @@ const ProductDetails = () => {
                       </button>
                     </div>
                   </ap-navtabs>
-                  <div class="product-tabs__content">
+                  <div className="product-tabs__content">
                     <div
                       id="block-7cca183b-2a77-4cb3-a100-ae76a5e24b66"
-                      class="product-tabs__tab-item-wrapper"
-                      hidden={activeTab !== "description"}
+                      className={`product-tabs__tab-item-wrapper ${
+                        activeTab === "description" ? "is-active" : ""
+                      }`}
                     >
                       <button
-                        is="toggle-button"
-                        class="collapsible-toggle heading heading--small hide-on-laptop-up"
-                        ap-controlsaria="block-7cca183b-2a77-4cb3-a100-ae76a5e24b66-content"
-                        ap-expanded-aria={
-                          activeTab === "description" ? "true" : "false"
-                        }
-                        onClick={() => setActiveTab("description")}
+                        type="button"
+                        className="collapsible-toggle heading heading--small hide-on-laptop-up"
+                        aria-expanded={activeTab === "description"}
+                        onClick={() => toggleProductTab("description")}
                       >
                         Description
                         <svg
                           focusable="false"
                           width="12"
                           height="8"
-                          class="icon icon--chevron   "
+                          className="icon icon--chevron   "
                           viewBox="0 0 12 8"
                         >
                           <path
                             fill="none"
                             d="M1 1l5 5 5-5"
                             stroke="currentColor"
-                            stroke-width="2"
+                            strokeWidth="2"
                           ></path>
                         </svg>
                       </button>
-                      <ap-contentcollapsible
+                      <div
                         id="block-7cca183b-2a77-4cb3-a100-ae76a5e24b66-content"
-                        class="collapsible"
-                        style={{ overflow: "hidden" }}
+                        className={`product-mobile-tab-content ${
+                          activeTab === "description" ? "is-open" : ""
+                        }`}
                       >
-                        <div class="product-tabs__tab-item-content rte">
+                        <div className="product-tabs__tab-item-content rte">
                           <p>
-                            <meta charset="utf-8" />
-                            <span></span>
-                            <span></span>
-                            <span>
-                              From the author of The Longest Ride and The Return
-                              comes a novel about the enduring legacy of first
-                              love, and the decisions that haunt us forever.
-                              1996 was the year that changed everything for
-                              Maggie Dawes. Sent away at sixteen to live with an
-                              aunt she barely knew in Ocracoke, a remote village
-                              on North Carolina's Outer Banks, she could think
-                              only of the friends and family she left behind . .
-                              . until she met Bryce Trickett, one of the few
-                              teenagers on the island. <br />
-                              <br />
-                              Handsome, genuine, and newly admitted to West
-                              Point, Bryce showed her how much there was to love
-                              about the wind-swept beach town--and introduced
-                              her to photography, a passion that would define
-                              the rest of her life. A collection of 10
-                              well-researched board books to introduce a wide
-                              range of learning topics and everyday objects to
-                              the little scholars. The topics included in the
-                              set are - ABC, Numbers, Shapes, Colours, Wild
-                              Animals, Farm Animals and Pets, Birds, Fruits,
-                              Vegetables and Transport.
-                            </span>
+                            From the author of The Longest Ride and The Return
+                            comes a novel about the enduring legacy of first
+                            love, and the decisions that haunt us forever. 1996
+                            was the year that changed everything for Maggie
+                            Dawes. Sent away at sixteen to live with an aunt she
+                            barely knew in Ocracoke, a remote village on North
+                            Carolina's Outer Banks, she could think only of the
+                            friends and family she left behind . . . until she
+                            met Bryce Trickett, one of the few teenagers on the
+                            island. <br />
+                            <br />
+                            Handsome, genuine, and newly admitted to West Point,
+                            Bryce showed her how much there was to love about
+                            the wind-swept beach town--and introduced her to
+                            photography, a passion that would define the rest of
+                            her life. A collection of 10 well-researched board
+                            books to introduce a wide range of learning topics
+                            and everyday objects to the little scholars. The
+                            topics included in the set are - ABC, Numbers,
+                            Shapes, Colours, Wild Animals, Farm Animals and
+                            Pets, Birds, Fruits, Vegetables and Transport.
                           </p>
                         </div>
 
-                        <div class="product-tabs__trust-list hide-on-pocket">
+                        <div className="product-tabs__trust-list hide-on-pocket">
                           <button
                             is="toggle-button"
-                            class="product-tabs__trust-title icon-text link text--subdued hide-on-phone"
+                            className="product-tabs__trust-title icon-text link text--subdued hide-on-phone"
                             ap-controlsaria="product-template--23597517013275__b4b2e57a-b15e-4f11-b27e-b0500d52dc70-trust-1-drawer"
                             ap-expanded-aria="false"
                             style={{ display: "inline-flex" }}
@@ -2254,22 +2415,22 @@ const ProductDetails = () => {
                               focusable="false"
                               width="29"
                               height="24"
-                              class="icon icon--picto-fast-delivery   product-tabs__trust-icon"
+                              className="icon icon--picto-fast-delivery   product-tabs__trust-icon"
                               viewBox="0 0 29 24"
                             >
                               <path
                                 d="M4 3H20V8M20 17H11.68C11.68 17 11 16 10 16M20 17V8M20 17H22.32M20 8H26.5L28 12.5V17H25.68C25.68 17 25 16 24 16M24 16C25 16 26 17 26 18C26 19 25 20 24 20C23 20 22 19 22 18C22 17.6527 22.1206 17.3054 22.32 17M24 16C23.3473 16 22.6946 16.426 22.32 17M10 16C11 16 12 17 12 18C12 19 11 20 10 20C9 20 8 19 8 18C8 17.6527 8.12061 17.3054 8.31996 17M10 16C9.3473 16 8.69459 16.426 8.31996 17M8.31996 17H4M10 12H3M10 8H1"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                             </svg>
                             Shipping &amp; Returns
                           </button>
                           <button
                             is="toggle-button"
-                            class="product-tabs__trust-title icon-text link text--subdued hide-on-tablet-up"
+                            className="product-tabs__trust-title icon-text link text--subdued hide-on-tablet-up"
                             ap-controlsaria="product-template--23597517013275__b4b2e57a-b15e-4f11-b27e-b0500d52dc70-trust-1-popover"
                             ap-expanded-aria="false"
                           >
@@ -2278,15 +2439,15 @@ const ProductDetails = () => {
                               focusable="false"
                               width="29"
                               height="24"
-                              class="icon icon--picto-fast-delivery   product-tabs__trust-icon"
+                              className="icon icon--picto-fast-delivery   product-tabs__trust-icon"
                               viewBox="0 0 29 24"
                             >
                               <path
                                 d="M4 3H20V8M20 17H11.68C11.68 17 11 16 10 16M20 17V8M20 17H22.32M20 8H26.5L28 12.5V17H25.68C25.68 17 25 16 24 16M24 16C25 16 26 17 26 18C26 19 25 20 24 20C23 20 22 19 22 18C22 17.6527 22.1206 17.3054 22.32 17M24 16C23.3473 16 22.6946 16.426 22.32 17M10 16C11 16 12 17 12 18C12 19 11 20 10 20C9 20 8 19 8 18C8 17.6527 8.12061 17.3054 8.31996 17M10 16C9.3473 16 8.69459 16.426 8.31996 17M8.31996 17H4M10 12H3M10 8H1"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                             </svg>
                             Shipping &amp; Returns
@@ -2294,7 +2455,7 @@ const ProductDetails = () => {
 
                           <button
                             is="toggle-button"
-                            class="product-tabs__trust-title icon-text link text--subdued hide-on-phone"
+                            className="product-tabs__trust-title icon-text link text--subdued hide-on-phone"
                             ap-controlsaria="product-template--23597517013275__b4b2e57a-b15e-4f11-b27e-b0500d52dc70-trust-2-drawer"
                             ap-expanded-aria="false"
                             style={{ display: "inline-flex" }}
@@ -2304,29 +2465,29 @@ const ProductDetails = () => {
                               focusable="false"
                               width="24"
                               height="24"
-                              class="icon icon--picto-warranty   product-tabs__trust-icon"
+                              className="icon icon--picto-warranty   product-tabs__trust-icon"
                               viewBox="0 0 24 24"
                             >
                               <path
                                 d="M5.25463 14C4.15672 12.6304 3.5 10.8919 3.5 9C3.5 4.58172 7.08172 1 11.5 1C15.9183 1 19.5 4.58172 19.5 9C19.5 10.8919 18.8433 12.6304 17.7454 14M5.25463 14L1.5 20L4.5 19L5.5 22L8.5 16.4185M5.25463 14C6.15126 15.1185 7.13226 15.9095 8.5 16.4185M8.5 16.4185C9.36872 16.7418 10.5187 17 11.5 17C12.5609 17 13.5736 16.7935 14.5 16.4185M17.7454 14L21.5 20L18.5 19L17.5 22L14.5 16.4185M17.7454 14C16.8949 15.0609 15.7797 15.9005 14.5 16.4185"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                               <path
                                 d="M8 9.72727L10.1473 12L14.5 7"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                             </svg>
                             Warranty
                           </button>
                           <button
                             is="toggle-button"
-                            class="product-tabs__trust-title icon-text link text--subdued hide-on-tablet-up"
+                            className="product-tabs__trust-title icon-text link text--subdued hide-on-tablet-up"
                             ap-controlsaria="product-template--23597517013275__b4b2e57a-b15e-4f11-b27e-b0500d52dc70-trust-2-popover"
                             ap-expanded-aria="false"
                           >
@@ -2335,22 +2496,22 @@ const ProductDetails = () => {
                               focusable="false"
                               width="24"
                               height="24"
-                              class="icon icon--picto-warranty   product-tabs__trust-icon"
+                              className="icon icon--picto-warranty   product-tabs__trust-icon"
                               viewBox="0 0 24 24"
                             >
                               <path
                                 d="M5.25463 14C4.15672 12.6304 3.5 10.8919 3.5 9C3.5 4.58172 7.08172 1 11.5 1C15.9183 1 19.5 4.58172 19.5 9C19.5 10.8919 18.8433 12.6304 17.7454 14M5.25463 14L1.5 20L4.5 19L5.5 22L8.5 16.4185M5.25463 14C6.15126 15.1185 7.13226 15.9095 8.5 16.4185M8.5 16.4185C9.36872 16.7418 10.5187 17 11.5 17C12.5609 17 13.5736 16.7935 14.5 16.4185M17.7454 14L21.5 20L18.5 19L17.5 22L14.5 16.4185M17.7454 14C16.8949 15.0609 15.7797 15.9005 14.5 16.4185"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                               <path
                                 d="M8 9.72727L10.1473 12L14.5 7"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                             </svg>
                             Warranty
@@ -2358,7 +2519,7 @@ const ProductDetails = () => {
 
                           <button
                             is="toggle-button"
-                            class="product-tabs__trust-title icon-text link text--subdued hide-on-phone"
+                            className="product-tabs__trust-title icon-text link text--subdued hide-on-phone"
                             ap-controlsaria="product-template--23597517013275__b4b2e57a-b15e-4f11-b27e-b0500d52dc70-trust-3-drawer"
                             ap-expanded-aria="false"
                             style={{ display: "inline-flex" }}
@@ -2368,22 +2529,22 @@ const ProductDetails = () => {
                               focusable="false"
                               width="24"
                               height="24"
-                              class="icon icon--picto-secure-payment   product-tabs__trust-icon"
+                              className="icon icon--picto-secure-payment   product-tabs__trust-icon"
                               viewBox="0 0 24 24"
                             >
                               <path
                                 d="M4 18H1V6M4 18V16H6M4 18V22H11V18M6 16C6 15.6667 6 15.3 6 14.5C6 13.5 6.73438 13 7.5 13C8.26562 13 9 13.5 9 14.5C9 15.3 9 15.6667 9 16M6 16H9M9 16H11V18M11 18H23V6M1 6V2H23V6M1 6H23M9 10H5M19 10V14H13V10H19Z"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                             </svg>
                             Secure Payment
                           </button>
                           <button
                             is="toggle-button"
-                            class="product-tabs__trust-title icon-text link text--subdued hide-on-tablet-up"
+                            className="product-tabs__trust-title icon-text link text--subdued hide-on-tablet-up"
                             ap-controlsaria="product-template--23597517013275__b4b2e57a-b15e-4f11-b27e-b0500d52dc70-trust-3-popover"
                             ap-expanded-aria="false"
                           >
@@ -2392,134 +2553,132 @@ const ProductDetails = () => {
                               focusable="false"
                               width="24"
                               height="24"
-                              class="icon icon--picto-secure-payment   product-tabs__trust-icon"
+                              className="icon icon--picto-secure-payment   product-tabs__trust-icon"
                               viewBox="0 0 24 24"
                             >
                               <path
                                 d="M4 18H1V6M4 18V16H6M4 18V22H11V18M6 16C6 15.6667 6 15.3 6 14.5C6 13.5 6.73438 13 7.5 13C8.26562 13 9 13.5 9 14.5C9 15.3 9 15.6667 9 16M6 16H9M9 16H11V18M11 18H23V6M1 6V2H23V6M1 6H23M9 10H5M19 10V14H13V10H19Z"
                                 stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
                               ></path>
                             </svg>
                             Secure Payment
                           </button>
                         </div>
-                      </ap-contentcollapsible>
+                      </div>
                     </div>
 
                     <div
                       id="block-5d25217f-c0a7-454c-9bdf-2e9b6e9cfd03"
-                      class="product-tabs__tab-item-wrapper"
-                      hidden={activeTab !== "additional"}
+                      className={`product-tabs__tab-item-wrapper ${
+                        activeTab === "additional" ? "is-active" : ""
+                      }`}
                     >
                       <button
-                        is="toggle-button"
-                        class="collapsible-toggle heading heading--small hide-on-laptop-up"
-                        ap-controlsaria="block-5d25217f-c0a7-454c-9bdf-2e9b6e9cfd03-content"
-                        ap-expanded-aria={
-                          activeTab === "additional" ? "true" : "false"
-                        }
-                        onClick={() => setActiveTab("additional")}
+                        type="button"
+                        className="collapsible-toggle heading heading--small hide-on-laptop-up"
+                        aria-expanded={activeTab === "additional"}
+                        onClick={() => toggleProductTab("additional")}
                       >
                         Additional information
                         <svg
                           focusable="false"
                           width="12"
                           height="8"
-                          class="icon icon--chevron   "
+                          className="icon icon--chevron   "
                           viewBox="0 0 12 8"
                         >
                           <path
                             fill="none"
                             d="M1 1l5 5 5-5"
                             stroke="currentColor"
-                            stroke-width="2"
+                            strokeWidth="2"
                           ></path>
                         </svg>
                       </button>
-                      <ap-contentcollapsible
+                      <div
                         id="block-5d25217f-c0a7-454c-9bdf-2e9b6e9cfd03-content"
-                        class="collapsible"
-                        style={{ overflow: "hidden" }}
+                        className={`product-mobile-tab-content ${
+                          activeTab === "additional" ? "is-open" : ""
+                        }`}
                       >
-                        <p>
-                          By changing our most important processes and <br />
-                          products, we have already made a big leap forward.
-                          This ranges from the <br />
-                          increased use of more sustainable fibers to the use of
-                          more <br />
-                          environmentally friendly printing processes to the
-                          development of <br />
-                          efficient waste management in our value chain.
-                        </p>
-                        <p>
-                          <br />
-                          <a
-                            href="https://ap-leotheme.myshopify.com/pages/sustainability"
-                            title="Sustainability"
-                          >
-                            Learn more about sustainability
-                          </a>
-                          <br />{" "}
-                        </p>
-                      </ap-contentcollapsible>
+                        <div className="product-tabs__tab-item-content rte">
+                          <p>
+                            By changing our most important processes and
+                            products, we have already made a big leap forward.
+                            This ranges from the increased use of more
+                            sustainable fibers to the use of more
+                            environmentally friendly printing processes to the
+                            development of efficient waste management in our
+                            value chain.
+                          </p>
+                          <p>
+                            <a
+                              href="https://ap-leotheme.myshopify.com/pages/sustainability"
+                              title="Sustainability"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Learn more about sustainability
+                            </a>
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     <div
                       id="block-AaVhUbEdMRFUyU3o0b__judge_me_reviews_review_widget_WH7V8q"
-                      class="product-tabs__tab-item-wrapper"
-                      hidden={activeTab !== "reviews"}
+                      className={`product-tabs__tab-item-wrapper ${
+                        activeTab === "reviews" ? "is-active" : ""
+                      }`}
                     >
                       <button
-                        is="toggle-button"
-                        class="collapsible-toggle heading heading--small hide-on-laptop-up"
-                        ap-controlsaria="block-AaVhUbEdMRFUyU3o0b__judge_me_reviews_review_widget_WH7V8q-content"
-                        ap-expanded-aria={
-                          activeTab === "reviews" ? "true" : "false"
-                        }
-                        onClick={() => setActiveTab("reviews")}
+                        type="button"
+                        className="collapsible-toggle heading heading--small hide-on-laptop-up"
+                        aria-expanded={activeTab === "reviews"}
+                        onClick={() => toggleProductTab("reviews")}
                       >
-                        Reviews
+                        Reviews{" "}
+                        {reviewMeta.totalReviews > 0
+                          ? `(${reviewMeta.totalReviews})`
+                          : ""}
                         <svg
                           focusable="false"
                           width="12"
                           height="8"
-                          class="icon icon--chevron   "
+                          className="icon icon--chevron   "
                           viewBox="0 0 12 8"
                         >
                           <path
                             fill="none"
                             d="M1 1l5 5 5-5"
                             stroke="currentColor"
-                            stroke-width="2"
+                            strokeWidth="2"
                           ></path>
                         </svg>
                       </button>
-                      <ap-contentcollapsible
+                      <div
                         id="block-AaVhUbEdMRFUyU3o0b__judge_me_reviews_review_widget_WH7V8q-content"
-                        class="collapsible"
-                        style={{
-                          overflow: "hidden",
-                          fontFamily: "manrope",
-                          fontWeight: "700",
-                        }}
+                        className={`product-mobile-tab-content ${
+                          activeTab === "reviews" ? "is-open" : ""
+                        }`}
                       >
                         <div
                           id="shopify-product-reviews"
-                          class="product-reviews-spr"
+                          className="product-reviews-spr"
                           data-id="9713931944219"
                         >
                           <div
                             id="shopify-block-AaVhUbEdMRFUyU3o0b__judge_me_reviews_review_widget_WH7V8q"
-                            class="theme-block app-block"
+                            className="theme-block app-block"
                             data-block-handle="review_widget"
                           >
                             <div style={{ clear: "both" }}></div>
                             <div
                               id="judgeme_product_reviews"
-                              class="review-widget review-widget review-done-setup-widget"
+                              className="review-widget review-widget review-done-setup-widget"
                               data-product-title="A Short History of Nearly Everything"
                               data-id="9713931944219"
                               data-product-id="9713931944219"
@@ -2539,714 +2698,424 @@ const ProductDetails = () => {
                               data-impressions-tracked="true"
                               data-views-tracked="true"
                             >
-                              <div class="review-legacy-content">
-                                <div
-                                  class="review-container"
-                                  data-updated-at="2024-10-11T02:58:06Z"
-                                  data-average-rating="0.00"
-                                  data-number-of-reviews="0"
-                                  data-number-of-questions="0"
-                                >
-                                  {" "}
-                                  <style class="review-temp-hiding-style">{`.review-container{ display: none }`}</style>{" "}
-                                  <div class="review-header">
-                                    {" "}
-                                    <h2 class="review-title">
-                                      Customer Reviews
-                                    </h2>{" "}
-                                    <div class="review-row-stars">
-                                      <div class="review-summary">
-                                        <div class="review-summary-inner">
-                                          {" "}
-                                          <div
-                                            class="review-summary-stars-list"
-                                            aria-label="Average rating is 0.00 stars"
-                                            role="img"
-                                          >
-                                            <i class="ri-star-line"></i>
-                                            <i class="ri-star-line"></i>
-                                            <i class="ri-star-line"></i>
-                                            <i class="ri-star-line"></i>
-                                            <i class="ri-star-line"></i>
-                                          </div>
-                                          <div class="review-summary-text">
-                                            Be the first to write a review
-                                          </div>{" "}
-                                        </div>
-                                      </div>
-                                      {/* <div class="review-histogram review-temp-hidden">
-                                        {" "}
-                                        <div
-                                          class="review-histogram-row"
-                                          data-rating="5"
-                                          data-frequency="0"
-                                          data-percentage="0"
-                                        >
-                                          {" "}
-                                          <div
-                                            class="review-histogram-star"
-                                            role="button"
-                                            aria-label="0% (0) reviews with 5 star rating"
-                                            tabindex="0"
-                                          >
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                          </div>{" "}
-                                          <div class="review-histogram-bar">
-                                            {" "}
-                                            <div
-                                              class="review-histogram-bar-content"
-                                              style={{ width: "0%" }}
-                                            >
-                                              {" "}
-                                            </div>{" "}
-                                          </div>{" "}
-                                          <div class="review-histogram-frequency">
-                                            0
-                                          </div>{" "}
-                                        </div>{" "}
-                                        <div
-                                          class="review-histogram-row"
-                                          data-rating="4"
-                                          data-frequency="0"
-                                          data-percentage="0"
-                                        >
-                                          {" "}
-                                          <div
-                                            class="review-histogram-star"
-                                            role="button"
-                                            aria-label="0% (0) reviews with 4 star rating"
-                                            tabindex="0"
-                                          >
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                          </div>{" "}
-                                          <div class="review-histogram-bar">
-                                            {" "}
-                                            <div
-                                              class="review-histogram-bar-content"
-                                              style={{ width: "0%" }}
-                                            >
-                                              {" "}
-                                            </div>{" "}
-                                          </div>{" "}
-                                          <div class="review-histogram-frequency">
-                                            0
-                                          </div>{" "}
-                                        </div>{" "}
-                                        <div
-                                          class="review-histogram-row"
-                                          data-rating="3"
-                                          data-frequency="0"
-                                          data-percentage="0"
-                                        >
-                                          {" "}
-                                          <div
-                                            class="review-histogram-star"
-                                            role="button"
-                                            aria-label="0% (0) reviews with 3 star rating"
-                                            tabindex="0"
-                                          >
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                          </div>{" "}
-                                          <div class="review-histogram-bar">
-                                            {" "}
-                                            <div
-                                              class="review-histogram-bar-content"
-                                              style={{ width: "0%" }}
-                                            >
-                                              {" "}
-                                            </div>{" "}
-                                          </div>{" "}
-                                          <div class="review-histogram-frequency">
-                                            0
-                                          </div>{" "}
-                                        </div>{" "}
-                                        <div
-                                          class="review-histogram-row"
-                                          data-rating="2"
-                                          data-frequency="0"
-                                          data-percentage="0"
-                                        >
-                                          {" "}
-                                          <div
-                                            class="review-histogram-star"
-                                            role="button"
-                                            aria-label="0% (0) reviews with 2 star rating"
-                                            tabindex="0"
-                                          >
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                          </div>{" "}
-                                          <div class="review-histogram-bar">
-                                            {" "}
-                                            <div
-                                              class="review-histogram-bar-content"
-                                              style={{ width: "0%" }}
-                                            >
-                                              {" "}
-                                            </div>{" "}
-                                          </div>{" "}
-                                          <div class="review-histogram-frequency">
-                                            0
-                                          </div>{" "}
-                                        </div>{" "}
-                                        <div
-                                          class="review-histogram-row"
-                                          data-rating="1"
-                                          data-frequency="0"
-                                          data-percentage="0"
-                                        >
-                                          {" "}
-                                          <div
-                                            class="review-histogram-star"
-                                            role="button"
-                                            aria-label="0% (0) reviews with 1 star rating"
-                                            tabindex="0"
-                                          >
-                                            <span class="review-star review-star-filled"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                            <span class="review-star review-star-empty"></span>
-                                          </div>{" "}
-                                          <div class="review-histogram-bar">
-                                            {" "}
-                                            <div
-                                              class="review-histogram-bar-content"
-                                              style={{ width: "0%" }}
-                                            >
-                                              {" "}
-                                            </div>{" "}
-                                          </div>{" "}
-                                          <div class="review-histogram-frequency">
-                                            0
-                                          </div>{" "}
-                                        </div>{" "}
-                                        <div
-                                          class="review-histogram-row review-histogram-clear-filter"
-                                          data-rating="null"
-                                          tabindex="0"
-                                        >
-                                          See all reviews
-                                        </div>{" "}
-                                      </div> */}
-                                      <div class="review-widget-actions">
-                                        <a
-                                          href="#"
-                                          class="review-write-btn"
-                                          role="button"
-                                          aria-expanded={
-                                            showReviewForm ? "true" : "false"
-                                          }
-                                          onClick={(event) => {
-                                            event.preventDefault();
-                                            setShowReviewForm(true);
-                                          }}
-                                        >
-                                          Write a review
-                                        </a>
+                              <div className="review-container py-4">
+                                <div className="review-header text-center mb-4">
+                                  <h2 className="review-title fs-3 fw-bold mb-3">
+                                    Customer Reviews
+                                  </h2>
+
+                                  {/* Review Feedback Alert */}
+                                  {reviewFeedback.message && (
+                                    <div
+                                      className={`alert alert-${reviewFeedback.type} alert-dismissible fade show mx-auto mb-4 text-start`}
+                                      style={{ maxWidth: "650px" }}
+                                      role="alert"
+                                    >
+                                      <div className="d-flex align-items-center">
+                                        <i
+                                          className={`me-2 fs-5 ${
+                                            reviewFeedback.type === "success"
+                                              ? "ri-checkbox-circle-line text-success"
+                                              : "ri-error-warning-line text-danger"
+                                          }`}
+                                        ></i>
+                                        <div>{reviewFeedback.message}</div>
                                       </div>
                                     </div>
-                                    <div
-                                      class="review-form-wrapper"
-                                      style={{
-                                        display: showReviewForm
-                                          ? "block"
-                                          : "none",
-                                      }}
-                                    >
-                                      <form
-                                        class="review-form"
-                                        novalidate="novalidate"
-                                      >
-                                        <div class="review-form-title">
-                                          Write a review
-                                        </div>
+                                  )}
 
-                                        <div
-                                          class="review-form-fieldset"
-                                          aria-label="Rating"
-                                        >
-                                          <label>Rating</label>
-                                          <span
-                                            class="review-form-rating"
-                                            role="radiogroup"
-                                            aria-label="Rating"
-                                            aria-required="true"
-                                            style={{ cursor: "pointer" }}
-                                          >
-                                            <i class="ri-star-line review-star"></i>
-                                            <i class="ri-star-line review-star"></i>
-                                            <i class="ri-star-line review-star"></i>
-                                            <i class="ri-star-line review-star"></i>
-                                            <i class="ri-star-line review-star"></i>
-                                            <input name="score" type="hidden" />
-                                          </span>
-                                        </div>
-
-                                        <div class="review-form-fieldset">
-                                          <label
-                                            class="review-form-label"
-                                            for="jdgm_review_title_rnrp9ipc8"
-                                          >
-                                            Review Title
-                                          </label>
-                                          <span class="review-countdown"></span>
-                                          <input
-                                            id="jdgm_review_title_rnrp9ipc8"
-                                            name="review_title"
-                                            type="text"
-                                            placeholder="Give your review a title"
-                                            aria-label="Review Title"
-                                          />
-                                        </div>
-
-                                        <div class="review-form-fieldset">
-                                          <label
-                                            class="review-form-label"
-                                            for="jdgm_review_body_rnrp9ipc8"
-                                          >
-                                            Review content
-                                          </label>
-                                          <span class="review-countdown"></span>
-                                          <textarea
-                                            id="jdgm_review_body_rnrp9ipc8"
-                                            rows="5"
-                                            name="review_body"
-                                            required=""
-                                            placeholder="Start writing here..."
-                                            aria-label="Review content"
-                                          ></textarea>
-                                        </div>
-
-                                        <div class="review-form-fieldset">
-                                          <label>
-                                            Picture/Video (optional)
-                                          </label>
-
-                                          <div class="review-media-container">
-                                            <div class="review-picture-box review-picture-box--input">
-                                              <div class="review-picture-box-wrapper">
-                                                <div class="review-media-icon"></div>
-                                              </div>
-
-                                              <input
-                                                type="file"
-                                                name="media"
-                                                class="review-media-input"
-                                                multiple=""
-                                                accept="image/gif,image/jpeg,image/jpg,image/png,image/webp"
-                                                aria-label="Choose a review picture/video (optional)"
-                                              />
-                                              <div
+                                  {/* Review Summary Score and Histogram */}
+                                  <div className="review-row-stars d-flex flex-column align-items-center justify-content-center">
+                                    <div className="review-summary text-center">
+                                      <div className="review-summary-inner">
+                                        <div className="d-flex align-items-center justify-content-center gap-2 mb-1">
+                                          <div className="review-summary-stars-list d-inline-flex align-items-center">
+                                            {[1, 2, 3, 4, 5].map((s) => (
+                                              <i
+                                                key={s}
+                                                className={
+                                                  reviewMeta.averageRating >= s
+                                                    ? "ri-star-fill text-warning"
+                                                    : reviewMeta.averageRating >=
+                                                        s - 0.5
+                                                      ? "ri-star-half-fill text-warning"
+                                                      : "ri-star-line text-muted"
+                                                }
                                                 style={{
-                                                  display: "none !important",
+                                                  fontSize: "20px",
+                                                  color:
+                                                    reviewMeta.averageRating >=
+                                                    s - 0.5
+                                                      ? "#f59e0b"
+                                                      : "#ccc",
+                                                  marginRight: "2px",
                                                 }}
-                                                aria-label="Choose a review picture/video (optional)"
-                                              >
-                                                Choose a review picture/video
-                                                (optional)
-                                              </div>
-                                            </div>
+                                              ></i>
+                                            ))}
                                           </div>
-                                        </div>
-
-                                        <div class="review-custom-forms"></div>
-
-                                        <div class="review-form-fieldset">
-                                          <label
-                                            class="review-form-label"
-                                            for="jdgm_review_reviewer_name_rnrp9ipc8"
-                                          >
-                                            Display name
-                                          </label>
-
-                                          <span class="review-form-reviewer-format">
-                                            (
-                                            <label
-                                              for="jdgm_review_reviewer_name_format_rnrp9ipc8"
-                                              class="review-form-label review-always-visible"
-                                            >
-                                              displayed publicly like
-                                            </label>
-                                            <span class="review-sort-dropdown-wrapper">
-                                              <select
-                                                id="jdgm_review_reviewer_name_format_rnrp9ipc8"
-                                                name="reviewer_name_format"
-                                                class="review-sort-dropdown"
-                                                aria-label="Name format"
-                                              >
-                                                <option value="" selected="">
-                                                  John Smith
-                                                </option>
-
-                                                <option value="last_initial">
-                                                  John S.
-                                                </option>
-
-                                                <option value="first_name_only">
-                                                  John
-                                                </option>
-
-                                                <option value="all_initials">
-                                                  J.S.
-                                                </option>
-
-                                                <option value="anonymous">
-                                                  Anonymous
-                                                </option>
-                                              </select>
-                                              <span class="review-sort-arrow">
-                                                <i class="ri-arrow-down-s-line"></i>
-                                              </span>
+                                          {reviewMeta.totalReviews > 0 && (
+                                            <span className="fw-bold fs-5 text-dark ms-1">
+                                              {reviewMeta.averageRating.toFixed(
+                                                1,
+                                              )}
                                             </span>
-                                            )
-                                          </span>
-
-                                          <input
-                                            id="jdgm_review_reviewer_name_rnrp9ipc8"
-                                            name="reviewer_name"
-                                            type="text"
-                                            required=""
-                                            placeholder="Display name"
-                                            aria-label="Display name"
-                                          />
+                                          )}
                                         </div>
 
-                                        <div class="review-form-fieldset review-form-email-fieldset">
-                                          <label for="jdgm_review_reviewer_email_rnrp9ipc8">
-                                            Email address
-                                          </label>
-                                          <input
-                                            id="jdgm_review_reviewer_email_rnrp9ipc8"
-                                            name="reviewer_email"
-                                            type="email"
-                                            required=""
-                                            placeholder="Your email address"
-                                            aria-label="Email address"
-                                          />
+                                        <div className="review-summary-text text-muted">
+                                          {reviewMeta.totalReviews > 0
+                                            ? `Based on ${reviewMeta.totalReviews} ${
+                                                reviewMeta.totalReviews === 1
+                                                  ? "review"
+                                                  : "reviews"
+                                              }`
+                                            : "No reviews yet. Be the first to write a review!"}
                                         </div>
-
-                                        <div class="review-form-fieldset">
-                                          <p>
-                                            How we use your data: We'll only
-                                            contact you about the review you
-                                            left, and only if necessary. By
-                                            submitting your review, you agree to
-                                            Judge.me's{" "}
-                                            <a
-                                              href="https://judge.me/terms"
-                                              target="_blank"
-                                              rel="nofollow noopener"
-                                            >
-                                              terms
-                                            </a>
-                                            ,{" "}
-                                            <a
-                                              href="https://judge.me/privacy"
-                                              target="_blank"
-                                              rel="nofollow noopener"
-                                            >
-                                              privacy
-                                            </a>{" "}
-                                            and{" "}
-                                            <a
-                                              href="https://judge.me/content-policy"
-                                              target="_blank"
-                                              rel="nofollow noopener"
-                                            >
-                                              content
-                                            </a>{" "}
-                                            policies.
-                                          </p>
-                                        </div>
-
-                                        <div class="review-form-fieldset review-form-actions">
-                                          <a
-                                            href="#judgeme_product_reviews"
-                                            role="button"
-                                            class="review-btn review-btn--border review-cancel-btn "
-                                            onClick={(event) => {
-                                              event.preventDefault();
-                                              setShowReviewForm(false);
-                                            }}
-                                          >
-                                            Cancel review
-                                          </a>
-                                          <input
-                                            type="submit"
-                                            class="review-btn review-btn--solid review-submit-btn "
-                                            value="Submit Review"
-                                          />
-                                        </div>
-                                      </form>
+                                      </div>
                                     </div>
-                                    <div
-                                      class="review-form-dynamic-wrapper"
-                                      style={{ display: "none" }}
-                                    >
-                                      <form
-                                        class="review-form review-form-dynamic"
-                                        novalidate="novalidate"
+
+                                    {/* Star Rating Breakdown / Histogram */}
+                                    {reviewMeta.totalReviews > 0 && (
+                                      <div
+                                        className="review-histogram w-100 my-3 text-start"
+                                        style={{ maxWidth: "420px" }}
                                       >
-                                        <div class="review-form-close-btn review-close-icon"></div>
-
-                                        <div
-                                          class="review-form-dynamic-row review-form-picture-upload"
-                                          data-pos="0"
-                                        >
-                                          <div class="review-form-dynamic-row-inner">
-                                            <div class="review-form-title">
-                                              Picture/Video (optional)
-                                            </div>
-
-                                            <div class="review-form-fieldset">
-                                              <div class="review-media-container">
-                                                <div class="review-picture-box review-picture-box--input">
-                                                  <div class="review-picture-box-wrapper">
-                                                    <div class="review-media-icon"></div>
-                                                  </div>
-
-                                                  <input
-                                                    type="file"
-                                                    name="media"
-                                                    class="review-media-input"
-                                                    multiple=""
-                                                    accept="image/gif,image/jpeg,image/jpg,image/png,image/webp"
-                                                    aria-label="Choose a review picture/video (optional)"
-                                                  />
-                                                </div>
+                                        {[5, 4, 3, 2, 1].map((star) => {
+                                          const count =
+                                            reviewMeta.ratingCounts?.[star] ||
+                                            0;
+                                          const pct =
+                                            reviewMeta.ratingPercentages?.[
+                                              star
+                                            ] || 0;
+                                          return (
+                                            <div
+                                              key={star}
+                                              className="d-flex align-items-center gap-2 mb-1"
+                                              style={{ fontSize: "13px" }}
+                                            >
+                                              <span
+                                                style={{
+                                                  width: "35px",
+                                                  color: "#555",
+                                                  fontWeight: "600",
+                                                }}
+                                              >
+                                                {star} ★
+                                              </span>
+                                              <div
+                                                className="progress flex-grow-1"
+                                                style={{
+                                                  height: "8px",
+                                                  backgroundColor: "#e9ecef",
+                                                  borderRadius: "4px",
+                                                }}
+                                              >
+                                                <div
+                                                  className="progress-bar"
+                                                  role="progressbar"
+                                                  style={{
+                                                    width: `${pct}%`,
+                                                    backgroundColor: "#027a36",
+                                                    borderRadius: "4px",
+                                                  }}
+                                                  aria-valuenow={pct}
+                                                  aria-valuemin="0"
+                                                  aria-valuemax="100"
+                                                ></div>
                                               </div>
+                                              <span
+                                                className="text-muted text-end"
+                                                style={{ width: "30px" }}
+                                              >
+                                                {count}
+                                              </span>
                                             </div>
-                                          </div>
-                                          <div class="review-form-buttons-row">
-                                            <div
-                                              class="review-btn review-btn--border review-form-back-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Back
-                                            </div>
-                                            <div
-                                              class="review-btn review-btn--solid review-form-next-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Next
-                                            </div>
-                                          </div>
-                                        </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
 
-                                        <div
-                                          class="review-form-dynamic-row"
-                                          data-pos="1"
-                                        >
-                                          <div class="review-form-dynamic-row-inner">
-                                            <div class="review-form-title">
-                                              Rating
+                                    {/* Write a Review Button / Customer State */}
+                                    <div className="review-widget-actions mt-3">
+                                      {!isLoggedIn ? (
+                                        <div>
+                                          {!showLoginNotice ? (
+                                            <button
+                                              type="button"
+                                              className="btn btn-success px-4 py-2 fw-semibold"
+                                              style={{
+                                                backgroundColor: "#027a36",
+                                                borderColor: "#027a36",
+                                              }}
+                                              onClick={() =>
+                                                setShowLoginNotice(true)
+                                              }
+                                            >
+                                              Write a review
+                                            </button>
+                                          ) : (
+                                            <div
+                                              className="alert alert-info d-flex align-items-center justify-content-between gap-3 text-start p-3 mx-auto"
+                                              style={{ maxWidth: "480px" }}
+                                            >
+                                              <div className="d-flex align-items-center gap-2">
+                                                <i className="ri-information-line fs-5"></i>
+                                                <span>
+                                                  Please login to write a
+                                                  review.
+                                                </span>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                className="btn btn-sm btn-primary text-white text-nowrap"
+                                                onClick={() =>
+                                                  navigate("/account/login")
+                                                }
+                                              >
+                                                Log In
+                                              </button>
                                             </div>
-                                            <span
-                                              class="review-form-dynamic-rating"
+                                          )}
+                                        </div>
+                                      ) : userHasReviewed ? (
+                                        <div
+                                          className={`alert ${
+                                            userReview?.status === "pending"
+                                              ? "alert-warning"
+                                              : "alert-success"
+                                          } d-flex align-items-center justify-content-center gap-2 px-4 py-2 mx-auto`}
+                                          style={{ maxWidth: "450px" }}
+                                        >
+                                          <i
+                                            className={
+                                              userReview?.status === "pending"
+                                                ? "ri-time-line fs-5 text-warning"
+                                                : "ri-checkbox-circle-line fs-5 text-success"
+                                            }
+                                          ></i>
+                                          <span>
+                                            {userReview?.status === "pending"
+                                              ? "Your review is awaiting approval."
+                                              : "You have already reviewed this product."}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="btn btn-success px-4 py-2 fw-semibold"
+                                          style={{
+                                            backgroundColor: "#027a36",
+                                            borderColor: "#027a36",
+                                          }}
+                                          onClick={() =>
+                                            setShowReviewForm(!showReviewForm)
+                                          }
+                                        >
+                                          {showReviewForm
+                                            ? "Close Form"
+                                            : "Write a review"}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Review Form */}
+                                  {showReviewForm &&
+                                    isLoggedIn &&
+                                    !userHasReviewed && (
+                                      <div
+                                        className="review-form-wrapper mt-4 pt-4 border-top text-start mx-auto"
+                                        style={{ maxWidth: "600px" }}
+                                      >
+                                        <form
+                                          className="review-form"
+                                          onSubmit={handleSubmitReview}
+                                          noValidate
+                                        >
+                                          <h3 className="review-form-title fs-5 fw-bold mb-3">
+                                            Write a review
+                                          </h3>
+
+                                          {/* Rating Selector */}
+                                          <div className="review-form-fieldset mb-3">
+                                            <label className="form-label fw-semibold d-block mb-1">
+                                              Rating{" "}
+                                              <span className="text-danger">
+                                                *
+                                              </span>
+                                            </label>
+                                            <div
+                                              className="d-flex align-items-center gap-1"
                                               style={{ cursor: "pointer" }}
                                             >
-                                              <a
-                                                data-alt="1"
-                                                class="review-star review-star-empty"
-                                                title="1 star"
-                                              ></a>
-                                              <a
-                                                data-alt="2"
-                                                class="review-star review-star-empty"
-                                                title="2 stars"
-                                              ></a>
-                                              <a
-                                                data-alt="3"
-                                                class="review-star review-star-empty"
-                                                title="3 stars"
-                                              ></a>
-                                              <a
-                                                data-alt="4"
-                                                class="review-star review-star-empty"
-                                                title="4 stars"
-                                              ></a>
-                                              <a
-                                                data-alt="5"
-                                                class="review-star review-star-empty"
-                                                title="5 stars"
-                                              ></a>
-                                              <input
-                                                name="score"
-                                                type="hidden"
-                                              />
-                                            </span>
-                                          </div>
-                                          <div class="review-form-buttons-row">
-                                            <div
-                                              class="review-btn review-btn--border review-form-back-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Back
-                                            </div>
-                                            <div
-                                              class="review-btn review-btn--solid review-form-next-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Next
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div
-                                          class="review-form-dynamic-row"
-                                          data-pos="2"
-                                        >
-                                          <div class="review-form-dynamic-row-inner">
-                                            <div class="review-form-fieldset">
-                                              <label for="jdgm_reviewer_name">
-                                                Display name
-                                              </label>
-                                              <input
-                                                id="jdgm_reviewer_name"
-                                                name="reviewer_name"
-                                                type="text"
-                                                required=""
-                                                placeholder="Display name"
-                                              />
-                                            </div>
-
-                                            <div class="review-form-fieldset review-form-dynamic-email">
-                                              <label for="jdgm_reviewer_email">
-                                                Email address
-                                              </label>
-                                              <input
-                                                id="jdgm_reviewer_email"
-                                                name="reviewer_email"
-                                                type="email"
-                                                required=""
-                                                placeholder="Your email address"
-                                              />
-                                            </div>
-                                          </div>
-                                          <div class="review-form-buttons-row">
-                                            <div
-                                              class="review-btn review-btn--border review-form-back-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Back
-                                            </div>
-                                            <div
-                                              class="review-btn review-btn--solid review-form-next-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Next
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div
-                                          class="review-form-dynamic-row review-form-submit-slide"
-                                          data-pos="3"
-                                        >
-                                          <div class="review-form-dynamic-row-inner">
-                                            <div class="review-form-fieldset">
-                                              <label
-                                                class="review-form-label"
-                                                for="jdgm_review_title"
+                                              {[1, 2, 3, 4, 5].map((star) => {
+                                                const active =
+                                                  (hoverRating ||
+                                                    reviewRating) >= star;
+                                                return (
+                                                  <i
+                                                    key={star}
+                                                    className={
+                                                      active
+                                                        ? "ri-star-fill"
+                                                        : "ri-star-line"
+                                                    }
+                                                    style={{
+                                                      fontSize: "26px",
+                                                      color: active
+                                                        ? "#f59e0b"
+                                                        : "#ccc",
+                                                      transition: "color 0.15s",
+                                                    }}
+                                                    onMouseEnter={() =>
+                                                      setHoverRating(star)
+                                                    }
+                                                    onMouseLeave={() =>
+                                                      setHoverRating(0)
+                                                    }
+                                                    onClick={() =>
+                                                      setReviewRating(star)
+                                                    }
+                                                    title={`${star} Star${
+                                                      star > 1 ? "s" : ""
+                                                    }`}
+                                                  ></i>
+                                                );
+                                              })}
+                                              <span
+                                                className="ms-2 text-muted"
+                                                style={{ fontSize: "14px" }}
                                               >
-                                                Review Title
-                                              </label>
-                                              <span class="review-countdown"></span>
-                                              <input
-                                                id="jdgm_review_title"
-                                                name="review_title"
-                                                type="text"
-                                                placeholder="Give your review a title"
-                                              />
-                                            </div>
-
-                                            <div class="review-form-fieldset">
-                                              <label
-                                                class="review-form-label"
-                                                for="jdgm_review_body"
-                                              >
-                                                Review content
-                                              </label>
-                                              <span class="review-countdown"></span>
-                                              <textarea
-                                                id="jdgm_review_body"
-                                                rows="5"
-                                                name="review_body"
-                                                required=""
-                                                placeholder="Start writing here..."
-                                              ></textarea>
+                                                ({hoverRating || reviewRating}{" "}
+                                                of 5 stars)
+                                              </span>
                                             </div>
                                           </div>
-                                          <div class="review-form-buttons-row">
-                                            <div
-                                              class="review-btn review-btn--border review-form-back-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Back
-                                            </div>
-                                            <div
-                                              class="review-btn review-btn--solid review-form-next-btn btn btn_c button"
-                                              tabindex="0"
-                                              role="button"
-                                            >
-                                              Next
-                                            </div>
+
+                                          {/* Review Title */}
+                                          <div className="review-form-fieldset mb-3">
+                                            <label className="form-label fw-semibold mb-1">
+                                              Review Title{" "}
+                                              <span className="text-danger">
+                                                *
+                                              </span>
+                                            </label>
+                                            <input
+                                              type="text"
+                                              className="form-control"
+                                              placeholder="Give your review a title (e.g. Great book!)"
+                                              value={reviewTitle}
+                                              onChange={(e) =>
+                                                setReviewTitle(e.target.value)
+                                              }
+                                              required
+                                            />
                                           </div>
-                                        </div>
 
-                                        <div class="review-custom-forms review-custom-forms-dynamic"></div>
+                                          {/* Review Content */}
+                                          <div className="review-form-fieldset mb-3">
+                                            <label className="form-label fw-semibold mb-1">
+                                              Review Content{" "}
+                                              <span className="text-danger">
+                                                *
+                                              </span>
+                                            </label>
+                                            <textarea
+                                              className="form-control"
+                                              rows="4"
+                                              placeholder="Share your thoughts about this product..."
+                                              value={reviewComment}
+                                              onChange={(e) =>
+                                                setReviewComment(e.target.value)
+                                              }
+                                              required
+                                            ></textarea>
+                                          </div>
 
-                                        <input
-                                          type="submit"
-                                          class="review-btn review-btn--solid review-form-submit-rev "
-                                          value="Submit Review"
-                                        />
-                                      </form>
-                                    </div>
-                                  </div>{" "}
-                                  <div class="review-row-actions">
-                                    <div class="review-sort-wrapper">
-                                      <label class="review-sort-dropdown-wrapper">
-                                        <span
-                                          class="review-sort-dropdown-label"
-                                          style={{
-                                            position: "absolute",
-                                            width: "1px",
-                                            height: "1px",
-                                            padding: 0,
-                                            margin: "-1px",
-                                            overflow: "hidden",
-                                            clip: "rect(0, 0, 0, 0)",
-                                            whiteSpace: "nowrap",
-                                            border: "0",
-                                          }}
+                                          {/* Reviewer Display Details */}
+                                          <div
+                                            className="review-form-fieldset mb-3 text-muted"
+                                            style={{ fontSize: "13px" }}
+                                          >
+                                            <i className="ri-user-line me-1"></i>{" "}
+                                            Submitting as:{" "}
+                                            <strong>
+                                              {user?.name || "Customer"}
+                                            </strong>{" "}
+                                            ({user?.email})
+                                          </div>
+
+                                          {/* Form Actions */}
+                                          <div className="d-flex align-items-center gap-3 mt-4">
+                                            <button
+                                              type="button"
+                                              className="btn btn-outline-secondary px-4 py-2"
+                                              onClick={() => {
+                                                setShowReviewForm(false);
+                                                setReviewFeedback({
+                                                  type: "",
+                                                  message: "",
+                                                });
+                                              }}
+                                              disabled={submittingReview}
+                                            >
+                                              Cancel
+                                            </button>
+                                            <button
+                                              type="submit"
+                                              className="btn btn-success px-4 py-2 d-flex align-items-center gap-2 text-white"
+                                              style={{
+                                                backgroundColor: "#027a36",
+                                                borderColor: "#027a36",
+                                              }}
+                                              disabled={submittingReview}
+                                            >
+                                              {submittingReview ? (
+                                                <>
+                                                  <span
+                                                    className="spinner-border spinner-border-sm"
+                                                    role="status"
+                                                    aria-hidden="true"
+                                                  ></span>
+                                                  Submitting...
+                                                </>
+                                              ) : (
+                                                "Submit Review"
+                                              )}
+                                            </button>
+                                          </div>
+                                        </form>
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Approved Reviews Section */}
+                                <div className="review-body mt-4 pt-4 border-top text-start">
+                                  {reviews.length > 0 && (
+                                    <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                      <h4
+                                        className="fw-bold mb-0"
+                                        style={{ fontSize: "18px" }}
+                                      >
+                                        Reviews ({reviews.length})
+                                      </h4>
+                                      <div className="d-flex align-items-center gap-2">
+                                        <label
+                                          htmlFor="review-sort-select"
+                                          className="text-muted small mb-0"
                                         >
-                                          Sort by
-                                        </span>
-                                        <select class="review-sort-dropdown">
+                                          Sort:
+                                        </label>
+                                        <select
+                                          id="review-sort-select"
+                                          className="form-select form-select-sm"
+                                          style={{ width: "150px" }}
+                                          value={reviewSort}
+                                          onChange={(e) =>
+                                            setReviewSort(e.target.value)
+                                          }
+                                        >
                                           <option value="most-recent">
                                             Most Recent
                                           </option>
@@ -3256,42 +3125,141 @@ const ProductDetails = () => {
                                           <option value="lowest-rating">
                                             Lowest Rating
                                           </option>
-                                          <option value="with-pictures">
-                                            Only Pictures
-                                          </option>
-                                          <option value="pictures-first">
-                                            Pictures First
-                                          </option>
-                                          <option value="videos-first">
-                                            Videos First
-                                          </option>
-                                          <option value="most-helpful">
-                                            Most Helpful
-                                          </option>
                                         </select>
-                                        <span class="review-sort-arrow"></span>
-                                      </label>
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div class="review-body">
-                                    {" "}
-                                    <div class="review-list"></div>{" "}
-                                    <div
-                                      class="review-paginate"
-                                      data-per-page="5"
-                                      data-url="https://judge.me/reviews/reviews_for_widget"
-                                    ></div>{" "}
-                                  </div>{" "}
-                                  <div class="review-paginate-spinner-wrapper">
-                                    {" "}
-                                    <div class="review-spinner"></div>{" "}
-                                  </div>{" "}
+                                  )}
+
+                                  {/* Loading State */}
+                                  {loadingReviews ? (
+                                    <div className="text-center py-5">
+                                      <div
+                                        className="spinner-border text-success"
+                                        role="status"
+                                      >
+                                        <span className="visually-hidden">
+                                          Loading reviews...
+                                        </span>
+                                      </div>
+                                      <p className="text-muted mt-2">
+                                        Loading reviews...
+                                      </p>
+                                    </div>
+                                  ) : reviews.length > 0 ? (
+                                    <div className="review-list">
+                                      {[...reviews]
+                                        .sort((a, b) => {
+                                          if (reviewSort === "highest-rating") {
+                                            return b.rating - a.rating;
+                                          }
+                                          if (reviewSort === "lowest-rating") {
+                                            return a.rating - b.rating;
+                                          }
+                                          return (
+                                            new Date(b.created_at || 0) -
+                                            new Date(a.created_at || 0)
+                                          );
+                                        })
+                                        .map((r) => {
+                                          const reviewDate = r.created_at
+                                            ? new Date(
+                                                r.created_at,
+                                              ).toLocaleDateString("en-GB", {
+                                                day: "2-digit",
+                                                month: "short",
+                                                year: "numeric",
+                                              })
+                                            : "";
+                                          const reviewerName =
+                                            r.user?.name || "Verified Customer";
+
+                                          return (
+                                            <div
+                                              key={r.review_id}
+                                              className="review-item py-3 border-bottom"
+                                              style={{
+                                                borderColor: "rgba(0,0,0,0.08)",
+                                              }}
+                                            >
+                                              <div className="d-flex align-items-center justify-content-between mb-2">
+                                                <div className="d-flex align-items-center gap-2 flex-wrap">
+                                                  <span className="d-inline-flex align-items-center">
+                                                    {[1, 2, 3, 4, 5].map(
+                                                      (s) => (
+                                                        <i
+                                                          key={s}
+                                                          className={
+                                                            r.rating >= s
+                                                              ? "ri-star-fill"
+                                                              : "ri-star-line"
+                                                          }
+                                                          style={{
+                                                            fontSize: "15px",
+                                                            color:
+                                                              r.rating >= s
+                                                                ? "#f59e0b"
+                                                                : "#ccc",
+                                                            marginRight: "2px",
+                                                          }}
+                                                        ></i>
+                                                      ),
+                                                    )}
+                                                  </span>
+                                                  {r.title && (
+                                                    <strong className="fw-semibold ms-2">
+                                                      {r.title}
+                                                    </strong>
+                                                  )}
+                                                </div>
+                                                <span className="text-muted small">
+                                                  {reviewDate}
+                                                </span>
+                                              </div>
+                                              <p
+                                                className="mb-2 text-dark"
+                                                style={{
+                                                  lineHeight: "1.6",
+                                                  whiteSpace: "pre-wrap",
+                                                }}
+                                              >
+                                                {r.comment}
+                                              </p>
+                                              <div className="d-flex align-items-center gap-1 text-muted small">
+                                                <i className="ri-user-3-line"></i>
+                                                <span>— {reviewerName}</span>
+                                                <span
+                                                  className="badge bg-light text-success ms-2 border"
+                                                  style={{ fontSize: "11px" }}
+                                                >
+                                                  <i className="ri-shield-check-line me-1"></i>{" "}
+                                                  Verified Customer
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-4 text-muted">
+                                      <i
+                                        className="ri-chat-1-line"
+                                        style={{
+                                          fontSize: "36px",
+                                          color: "#ccc",
+                                        }}
+                                      ></i>
+                                      <p className="mt-2 mb-0">
+                                        No reviews yet. Be the first to write a
+                                        review!
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </ap-contentcollapsible>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -3609,10 +3577,7 @@ const ProductDetails = () => {
                                     </span>
                                   </div>
                                 </div>
-                                <a
-                                  href="#"
-                                  className="product-card-title mb-1"
-                                >
+                                <a href="#" className="product-card-title mb-1">
                                   {product.title}
                                 </a>
                                 <div className="product-author my-2">
@@ -3628,7 +3593,7 @@ const ProductDetails = () => {
                                         <span className="visually-hidden">
                                           regular price
                                         </span>
-                                        ${product.price}
+                                        ₹{product.price}
                                       </span>
                                     </div>
                                   </div>
@@ -4100,10 +4065,7 @@ const ProductDetails = () => {
                                     </span>
                                   </div>
                                 </div>
-                                <a
-                                  href="#"
-                                  className="product-card-title mb-1"
-                                >
+                                <a href="#" className="product-card-title mb-1">
                                   {product.title}
                                 </a>
                                 <div className="product-author my-2">
@@ -4119,7 +4081,7 @@ const ProductDetails = () => {
                                         <span className="visually-hidden">
                                           regular price
                                         </span>
-                                        ${product.price}
+                                        ₹{product.price}
                                       </span>
                                     </div>
                                   </div>

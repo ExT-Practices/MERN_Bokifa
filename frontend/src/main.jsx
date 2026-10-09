@@ -42,6 +42,8 @@ import ProductForm from "./admin/pages/ProductForm";
 import Categories from "./admin/pages/Categories";
 import Orders from "./admin/pages/Orders";
 import OrderDetails from "./admin/pages/OrderDetails";
+import Reviews from "./admin/pages/Reviews";
+import Payments from "./admin/pages/Payments";
 import Users from "./admin/pages/Users";
 import UserDetails from "./admin/pages/UserDetails";
 import AdminProfile from "./admin/pages/AdminProfile";
@@ -105,6 +107,8 @@ const router = createBrowserRouter([
       { path: "categories", element: <Categories /> },
       { path: "orders", element: <Orders /> },
       { path: "orders/:id", element: <OrderDetails /> },
+      { path: "reviews", element: <Reviews /> },
+      { path: "payments", element: <Payments /> },
       { path: "users", element: <Users /> },
       { path: "users/:id", element: <UserDetails /> },
       { path: "profile", element: <AdminProfile /> },

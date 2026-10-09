@@ -1,3 +1,4 @@
+import { Op, fn, col, literal } from "sequelize";
 import Order from "../models/Order.js";
 import OrderItem from "../models/OrderItem.js";
 import Cart from "../models/Cart.js";
@@ -537,14 +538,14 @@ export const getAllOrders = async (req, res) => {
 
     // Date filter
     if (start_date || end_date) {
-      where.createdAt = {};
+      where.created_at = {};
 
       if (start_date) {
-        where.createdAt[Op.gte] = new Date(`${start_date}T00:00:00`);
+        where.created_at[Op.gte] = new Date(`${start_date}T00:00:00`);
       }
 
       if (end_date) {
-        where.createdAt[Op.lte] = new Date(`${end_date}T23:59:59`);
+        where.created_at[Op.lte] = new Date(`${end_date}T23:59:59`);
       }
     }
 
@@ -569,6 +570,16 @@ export const getAllOrders = async (req, res) => {
           },
         },
         {
+          razorpay_payment_id: {
+            [Op.like]: searchValue,
+          },
+        },
+        {
+          razorpay_order_id: {
+            [Op.like]: searchValue,
+          },
+        },
+        {
           "$user.name$": {
             [Op.like]: searchValue,
           },
@@ -584,6 +595,8 @@ export const getAllOrders = async (req, res) => {
     const { count, rows } = await Order.findAndCountAll({
       where,
 
+      subQuery: false,
+
       include: [
         {
           model: User,
@@ -591,20 +604,10 @@ export const getAllOrders = async (req, res) => {
           attributes: ["id", "name", "email"],
           required: false,
         },
-        {
-          model: OrderItem,
-          as: "items",
-          include: [
-            {
-              model: Product,
-              as: "product",
-              attributes: ["product_id", "title", "image"],
-            },
-          ],
-        },
       ],
 
       distinct: true,
+      col: "order_id",
 
       order: [["created_at", "DESC"]],
 
@@ -1014,6 +1017,10 @@ export const getAdminOrderStats = async (req, res) => {
       where: { status: "pending" },
     });
 
+    const confirmedOrders = await Order.count({
+      where: { status: "confirmed" },
+    });
+
     const processingOrders = await Order.count({
       where: { status: "processing" },
     });
@@ -1046,11 +1053,150 @@ export const getAdminOrderStats = async (req, res) => {
 
     const totalRevenue = Number(revenueResult || 0);
 
+    // Monthly Analytics for the last 6 months (Dynamic)
+    const now = new Date();
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    // Start of 5 months ago (00:00:00.000)
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - 5,
+      1,
+      0,
+      0,
+      0,
+      0,
+    );
+
+    // Build the 6-month continuous template slots
+    const monthlySlots = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const monthNum = String(d.getMonth() + 1).padStart(2, "0");
+      const key = `${year}-${monthNum}`;
+      monthlySlots.push({
+        key,
+        month: monthNames[d.getMonth()],
+        year,
+        orders: 0,
+        revenue: 0,
+      });
+    }
+
+    // Aggregate monthly orders and revenue from database
+    const monthlyRecords = await Order.findAll({
+      attributes: [
+        [fn("DATE_FORMAT", col("created_at"), "%Y-%m"), "monthKey"],
+        [fn("COUNT", col("order_id")), "orders"],
+        [
+          fn(
+            "COALESCE",
+            fn(
+              "SUM",
+              literal(
+                "CASE WHEN payment_status = 'paid' THEN total_amount ELSE 0 END",
+              ),
+            ),
+            0,
+          ),
+          "revenue",
+        ],
+      ],
+      where: {
+        created_at: {
+          [Op.gte]: startDate,
+        },
+      },
+      group: [literal("DATE_FORMAT(created_at, '%Y-%m')")],
+      raw: true,
+    });
+
+    const monthlyMap = new Map();
+    monthlyRecords.forEach((item) => {
+      monthlyMap.set(item.monthKey, {
+        orders: parseInt(item.orders, 10) || 0,
+        revenue: parseFloat(item.revenue || 0),
+      });
+    });
+
+    const monthlyAnalytics = monthlySlots.map((slot) => {
+      const found = monthlyMap.get(slot.key);
+      return {
+        month: slot.month,
+        year: slot.year,
+        orders: found ? found.orders : 0,
+        revenue: found ? Math.round(found.revenue * 100) / 100 : 0,
+      };
+    });
+
+    // Order Status Breakdown for distribution charts
+    const statusCounts = await Order.findAll({
+      attributes: ["status", [fn("COUNT", col("order_id")), "count"]],
+      group: ["status"],
+      raw: true,
+    });
+
+    const statusMap = {
+      pending: 0,
+      confirmed: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0,
+    };
+
+    statusCounts.forEach((item) => {
+      if (item.status) {
+        const s = String(item.status).toLowerCase();
+        statusMap[s] = parseInt(item.count, 10) || 0;
+      }
+    });
+
+    const orderStatusBreakdown = [
+      { status: "pending", label: "Pending", count: statusMap.pending || 0 },
+      {
+        status: "confirmed",
+        label: "Confirmed",
+        count: statusMap.confirmed || 0,
+      },
+      {
+        status: "processing",
+        label: "Processing",
+        count: statusMap.processing || 0,
+      },
+      { status: "shipped", label: "Shipped", count: statusMap.shipped || 0 },
+      {
+        status: "delivered",
+        label: "Delivered",
+        count: statusMap.delivered || 0,
+      },
+      {
+        status: "cancelled",
+        label: "Cancelled",
+        count: statusMap.cancelled || 0,
+      },
+    ];
+
     return res.status(200).json({
       success: true,
       data: {
         totalOrders,
         pendingOrders,
+        confirmedOrders,
         processingOrders,
         shippedOrders,
         deliveredOrders,
@@ -1058,6 +1204,8 @@ export const getAdminOrderStats = async (req, res) => {
         paidOrders,
         pendingPayments,
         totalRevenue,
+        monthlyAnalytics,
+        orderStatusBreakdown,
       },
     });
   } catch (error) {

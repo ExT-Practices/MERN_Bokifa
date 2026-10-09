@@ -14,11 +14,8 @@ const ConfirmModal = ({
 
   return (
     <div className="admin-modal-backdrop" onClick={onClose}>
-      <div
-        className="admin-modal-dialog"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-4 border-bottom d-flex align-items-center justify-content-between">
+      <div className="admin-modal-dialog" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal-header">
           <h5 className="m-0 font-weight-bold text-dark">{title}</h5>
           <button
             type="button"
@@ -29,13 +26,16 @@ const ConfirmModal = ({
           ></button>
         </div>
 
-        <div className="p-4">
-          <p className="m-0 text-muted" style={{ fontSize: "0.95rem", lineHeight: "1.5" }}>
+        <div className="admin-modal-body">
+          <p
+            className="m-0 text-muted"
+            style={{ fontSize: "0.95rem", lineHeight: "1.5" }}
+          >
             {message}
           </p>
         </div>
 
-        <div className="p-3 bg-light d-flex justify-content-end gap-2 border-top">
+        <div className="admin-modal-footer justify-content-end gap-2">
           <button
             type="button"
             className="btn btn-outline-secondary px-4 font-weight-medium"
@@ -52,7 +52,11 @@ const ConfirmModal = ({
           >
             {loading ? (
               <>
-                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                <span
+                  className="spinner-border spinner-border-sm me-2"
+                  role="status"
+                  aria-hidden="true"
+                ></span>
                 Processing...
               </>
             ) : (

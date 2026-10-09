@@ -48,11 +48,22 @@ const Orders = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, search, statusFilter, paymentStatusFilter, paymentMethodFilter]);
+  }, [
+    currentPage,
+    search,
+    statusFilter,
+    paymentStatusFilter,
+    paymentMethodFilter,
+  ]);
 
   useEffect(() => {
     fetchOrdersList();
   }, [fetchOrdersList]);
+
+  // Keep searchInput in sync if URL searchParam changes externally
+  useEffect(() => {
+    setSearchInput(search);
+  }, [search]);
 
   // Handle Search submit
   const handleSearchSubmit = (e) => {
@@ -79,6 +90,12 @@ const Orders = () => {
     setSearchParams(newParams);
   };
 
+  // Clear all filters handler
+  const handleClearAllFilters = () => {
+    setSearchInput("");
+    setSearchParams({});
+  };
+
   // Pagination handler
   const handlePageChange = (newPage) => {
     const newParams = new URLSearchParams(searchParams);
@@ -94,8 +111,31 @@ const Orders = () => {
     }).format(val || 0);
   };
 
+  const formatOrderDate = (dateStr) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const formatOrderTime = (dateStr) => {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const hasActiveFilters = Boolean(
+    search || statusFilter || paymentStatusFilter || paymentMethodFilter,
+  );
+
   return (
-    <div>
+    <div className="admin-orders-page">
+      {/* Page Header */}
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">Order Management</h1>
@@ -103,98 +143,137 @@ const Orders = () => {
             Track customer orders, update delivery status, and manage refunds
           </p>
         </div>
+
+        {pagination && pagination.totalOrders !== undefined && (
+          <div className="admin-orders-header-stat d-none d-sm-flex align-items-center">
+            <div className="admin-orders-stat-badge">
+              <i className="fa-solid fa-boxes-stacked"></i>
+              <span>
+                {pagination.totalOrders}{" "}
+                {pagination.totalOrders === 1 ? "Order" : "Orders"}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="filter-bar">
-        <form onSubmit={handleSearchSubmit} className="search-input-group">
-          <i className="fa-solid fa-magnifying-glass"></i>
+      {/* Filter & Search Toolbar */}
+      <div className="admin-orders-toolbar">
+        <form onSubmit={handleSearchSubmit} className="admin-orders-search">
+          <i className="fa-solid fa-magnifying-glass admin-orders-search-icon"></i>
           <input
             type="text"
-            className="form-control"
+            className="form-control admin-orders-search-input"
             placeholder="Search by Order #, customer name, phone..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-        </form>
-
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          {/* Status Filter */}
-          <select
-            className="form-select"
-            style={{ width: "auto", minWidth: "150px" }}
-            value={statusFilter}
-            onChange={(e) => handleFilterChange("status", e.target.value)}
-          >
-            <option value="">All Order Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="processing">Processing</option>
-            <option value="shipped">Shipped</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-
-          {/* Payment Status Filter */}
-          <select
-            className="form-select"
-            style={{ width: "auto", minWidth: "150px" }}
-            value={paymentStatusFilter}
-            onChange={(e) => handleFilterChange("payment_status", e.target.value)}
-          >
-            <option value="">All Payment Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="refunded">Refunded</option>
-            <option value="failed">Failed</option>
-          </select>
-
-          {/* Payment Method Filter */}
-          <select
-            className="form-select"
-            style={{ width: "auto", minWidth: "140px" }}
-            value={paymentMethodFilter}
-            onChange={(e) => handleFilterChange("payment_method", e.target.value)}
-          >
-            <option value="">All Methods</option>
-            <option value="cod">Cash on Delivery (COD)</option>
-            <option value="online">Online (Razorpay)</option>
-          </select>
-
-          {(search || statusFilter || paymentStatusFilter || paymentMethodFilter) && (
+          {searchInput && (
             <button
-              className="btn btn-outline-secondary"
+              type="button"
+              className="admin-orders-search-clear"
               onClick={() => {
                 setSearchInput("");
-                setSearchParams({});
+                const newParams = new URLSearchParams(searchParams);
+                newParams.delete("search");
+                newParams.set("page", "1");
+                setSearchParams(newParams);
               }}
+              aria-label="Clear search text"
             >
-              Clear Filters
+              <i className="fa-solid fa-xmark"></i>
+            </button>
+          )}
+        </form>
+
+        <div className="admin-orders-filters">
+          <div className="admin-orders-filter-select-wrapper">
+            <select
+              className="form-select admin-orders-select"
+              value={statusFilter}
+              onChange={(e) => handleFilterChange("status", e.target.value)}
+              aria-label="Filter by order status"
+            >
+              <option value="">All Order Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+
+          <div className="admin-orders-filter-select-wrapper">
+            <select
+              className="form-select admin-orders-select"
+              value={paymentStatusFilter}
+              onChange={(e) =>
+                handleFilterChange("payment_status", e.target.value)
+              }
+              aria-label="Filter by payment status"
+            >
+              <option value="">All Payment Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="paid">Paid</option>
+              <option value="refunded">Refunded</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+
+          <div className="admin-orders-filter-select-wrapper">
+            <select
+              className="form-select admin-orders-select"
+              value={paymentMethodFilter}
+              onChange={(e) =>
+                handleFilterChange("payment_method", e.target.value)
+              }
+              aria-label="Filter by payment method"
+            >
+              <option value="">All Methods</option>
+              <option value="cod">Cash on Delivery (COD)</option>
+              <option value="online">Online (Razorpay)</option>
+            </select>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="btn btn-outline-secondary admin-orders-clear-btn"
+              onClick={handleClearAllFilters}
+            >
+              <i className="fa-solid fa-filter-circle-xmark me-1"></i>
+              <span>Clear Filters</span>
             </button>
           )}
         </div>
       </div>
 
+      {/* Error Alert */}
       {error && (
-        <div className="alert alert-danger d-flex align-items-center justify-content-between mb-4">
-          <div>
-            <i className="fa-solid fa-triangle-exclamation me-2"></i>
-            {error}
+        <div className="alert alert-danger admin-orders-error-alert d-flex align-items-center justify-content-between mb-4">
+          <div className="d-flex align-items-center gap-2">
+            <i className="fa-solid fa-triangle-exclamation fs-5"></i>
+            <span>{error}</span>
           </div>
-          <button className="btn btn-sm btn-outline-danger" onClick={fetchOrdersList}>
-            Retry
+          <button
+            className="btn btn-sm btn-outline-danger"
+            onClick={fetchOrdersList}
+          >
+            <i className="fa-solid fa-rotate-right me-1"></i> Retry
           </button>
         </div>
       )}
 
-      {/* Orders Data Table */}
-      <div className="admin-card">
-        <div className="admin-table-container">
-          <table className="admin-table">
+      {/* Orders Container Card */}
+      <div className="admin-card admin-orders-card">
+        {/* Desktop & Tablet Table (Hidden on small mobile) */}
+        <div className="admin-table-container admin-orders-table-wrapper d-none d-md-block">
+          <table className="admin-table admin-orders-table">
             <thead>
               <tr>
                 <th>Order #</th>
-                <th>Customer Name</th>
+                <th>Customer</th>
                 <th>Date & Time</th>
                 <th>Method</th>
                 <th>Payment</th>
@@ -208,69 +287,242 @@ const Orders = () => {
                 <TableSkeleton rows={8} cols={8} />
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="text-center py-5 text-muted">
-                    <i className="fa-solid fa-cart-flatbed fs-2 mb-3 d-block text-secondary"></i>
-                    No orders matching your search or filters.
+                  <td colSpan="8">
+                    <div className="admin-orders-empty-state">
+                      <div className="admin-orders-empty-icon">
+                        <i className="fa-solid fa-bag-shopping"></i>
+                      </div>
+                      <h3 className="admin-orders-empty-title">
+                        No orders found
+                      </h3>
+                      <p className="admin-orders-empty-desc">
+                        {hasActiveFilters
+                          ? "No orders match your current search criteria or active filters."
+                          : "There are no customer orders recorded in the system yet."}
+                      </p>
+                      {hasActiveFilters && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-sm mt-2"
+                          onClick={handleClearAllFilters}
+                        >
+                          <i className="fa-solid fa-filter-circle-xmark me-1"></i>{" "}
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => (
-                  <tr key={order.order_id}>
-                    <td>
-                      <Link
-                        to={`/admin/orders/${order.order_id}`}
-                        className="fw-bold text-primary text-decoration-none hover-primary"
-                      >
-                        #{order.order_number}
-                      </Link>
-                    </td>
-                    <td>
-                      <div className="fw-semibold text-dark">
-                        {order.shipping_name || order.user?.name || "Guest Customer"}
-                      </div>
-                      <small className="text-muted d-block">{order.user?.email || order.shipping_phone || ""}</small>
-                    </td>
-                    <td className="text-muted small">
-                      {new Date(order.createdAt || order.created_at).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td>
-                      <span className="badge bg-light text-dark border">
-                        {order.payment_method === "cod" ? "COD" : "Razorpay Online"}
-                      </span>
-                    </td>
-                    <td>
-                      <StatusBadge status={order.payment_status} />
-                    </td>
-                    <td>
-                      <StatusBadge status={order.status} />
-                    </td>
-                    <td>
-                      <div className="fw-bold">{formatCurrency(order.total_amount)}</div>
-                    </td>
-                    <td className="text-end">
-                      <Link
-                        to={`/admin/orders/${order.order_id}`}
-                        className="btn btn-sm btn-outline-primary fw-semibold px-3"
-                      >
-                        View Order
-                      </Link>
-                    </td>
-                  </tr>
-                ))
+                orders.map((order) => {
+                  const customerName =
+                    order.shipping_name || order.user?.name || "Guest Customer";
+                  const customerContact =
+                    order.user?.email || order.shipping_phone || "";
+                  const initial = customerName.charAt(0).toUpperCase();
+
+                  return (
+                    <tr key={order.order_id} className="admin-order-row">
+                      <td>
+                        <Link
+                          to={`/admin/orders/${order.order_id}`}
+                          className="admin-order-id-link"
+                        >
+                          #{order.order_number}
+                        </Link>
+                      </td>
+                      <td>
+                        <div className="admin-order-customer">
+                          <div className="admin-order-customer-avatar">
+                            {initial}
+                          </div>
+                          <div className="admin-order-customer-info">
+                            <span className="admin-order-customer-name">
+                              {customerName}
+                            </span>
+                            {customerContact && (
+                              <span className="admin-order-customer-contact">
+                                {customerContact}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="admin-order-datetime">
+                          <span className="admin-order-date">
+                            {formatOrderDate(
+                              order.createdAt || order.created_at,
+                            )}
+                          </span>
+                          <span className="admin-order-time">
+                            {formatOrderTime(
+                              order.createdAt || order.created_at,
+                            )}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={`admin-order-method-badge ${order.payment_method === "cod" ? "cod" : "online"}`}
+                        >
+                          <i
+                            className={
+                              order.payment_method === "cod"
+                                ? "fa-solid fa-money-bill-wave"
+                                : "fa-solid fa-credit-card"
+                            }
+                          ></i>
+                          {order.payment_method === "cod" ? "COD" : "Razorpay"}
+                        </span>
+                      </td>
+                      <td>
+                        <StatusBadge status={order.payment_status} />
+                      </td>
+                      <td>
+                        <StatusBadge status={order.status} />
+                      </td>
+                      <td>
+                        <span className="admin-order-total-amount">
+                          {formatCurrency(order.total_amount)}
+                        </span>
+                      </td>
+                      <td className="text-end">
+                        <Link
+                          to={`/admin/orders/${order.order_id}`}
+                          className="btn btn-sm admin-order-view-btn"
+                        >
+                          <span>View</span>
+                          <i className="fa-solid fa-arrow-right ms-1"></i>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
+        {/* Mobile Cards View (Visible on screens < 768px) */}
+        <div className="admin-orders-mobile-list d-md-none">
+          {loading ? (
+            <div className="p-3">
+              <TableSkeleton rows={4} cols={1} />
+            </div>
+          ) : orders.length === 0 ? (
+            <div className="admin-orders-empty-state p-4">
+              <div className="admin-orders-empty-icon">
+                <i className="fa-solid fa-bag-shopping"></i>
+              </div>
+              <h3 className="admin-orders-empty-title">No orders found</h3>
+              <p className="admin-orders-empty-desc">
+                {hasActiveFilters
+                  ? "No orders match your current search or active filters."
+                  : "There are no customer orders recorded yet."}
+              </p>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  className="btn btn-outline-primary btn-sm mt-2"
+                  onClick={handleClearAllFilters}
+                >
+                  <i className="fa-solid fa-filter-circle-xmark me-1"></i> Clear
+                  Filters
+                </button>
+              )}
+            </div>
+          ) : (
+            orders.map((order) => {
+              const customerName =
+                order.shipping_name || order.user?.name || "Guest Customer";
+              const customerContact =
+                order.user?.email || order.shipping_phone || "";
+              const initial = customerName.charAt(0).toUpperCase();
+
+              return (
+                <div key={order.order_id} className="admin-order-mobile-card">
+                  {/* Card Header: Order # + Status Badge */}
+                  <div className="admin-order-mobile-card-header">
+                    <Link
+                      to={`/admin/orders/${order.order_id}`}
+                      className="admin-order-id-link"
+                    >
+                      #{order.order_number}
+                    </Link>
+                    <StatusBadge status={order.status} />
+                  </div>
+
+                  {/* Customer Identity */}
+                  <div className="admin-order-mobile-customer">
+                    <div className="admin-order-customer-avatar">{initial}</div>
+                    <div className="admin-order-customer-info">
+                      <span className="admin-order-customer-name">
+                        {customerName}
+                      </span>
+                      {customerContact && (
+                        <span className="admin-order-customer-contact">
+                          {customerContact}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Meta Details Grid */}
+                  <div className="admin-order-mobile-details-grid">
+                    <div className="admin-order-mobile-detail-item">
+                      <span className="admin-order-detail-label">
+                        Date & Time
+                      </span>
+                      <span className="admin-order-detail-value">
+                        {formatOrderDate(order.createdAt || order.created_at)} •{" "}
+                        {formatOrderTime(order.createdAt || order.created_at)}
+                      </span>
+                    </div>
+                    <div className="admin-order-mobile-detail-item">
+                      <span className="admin-order-detail-label">Payment</span>
+                      <div className="d-flex align-items-center gap-1 flex-wrap">
+                        <span
+                          className={`admin-order-method-badge ${order.payment_method === "cod" ? "cod" : "online"}`}
+                        >
+                          {order.payment_method === "cod" ? "COD" : "Razorpay"}
+                        </span>
+                        <StatusBadge status={order.payment_status} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="admin-order-mobile-card-footer">
+                    <div className="admin-order-mobile-total">
+                      <span className="admin-order-mobile-total-label">
+                        Total Amount
+                      </span>
+                      <span className="admin-order-mobile-total-val">
+                        {formatCurrency(order.total_amount)}
+                      </span>
+                    </div>
+                    <Link
+                      to={`/admin/orders/${order.order_id}`}
+                      className="btn btn-sm admin-order-view-btn"
+                    >
+                      <span>View Order</span>
+                      <i className="fa-solid fa-arrow-right ms-1"></i>
+                    </Link>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Pagination Section */}
         {pagination && (
-          <div className="p-3">
-            <Pagination pagination={pagination} onPageChange={handlePageChange} />
+          <div className="admin-orders-pagination-wrapper">
+            <Pagination
+              pagination={pagination}
+              onPageChange={handlePageChange}
+            />
           </div>
         )}
       </div>

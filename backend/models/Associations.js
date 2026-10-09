@@ -8,6 +8,7 @@ import CartItem from "./CartItem.js";
 import Order from "./Order.js";
 import OrderItem from "./OrderItem.js";
 import Address from "./Address.js";
+import Review from "./Review.js";
 // Category ↔ Product
 Category.belongsToMany(Product, {
   through: ProductCategory,
@@ -130,6 +131,30 @@ Address.belongsTo(User, {
   as: "user",
 });
 
+// User <-> Review
+User.hasMany(Review, {
+  foreignKey: "user_id",
+  as: "reviews",
+  onDelete: "CASCADE",
+});
+
+Review.belongsTo(User, {
+  foreignKey: "user_id",
+  as: "user",
+});
+
+// Product <-> Review
+Product.hasMany(Review, {
+  foreignKey: "product_id",
+  as: "reviews",
+  onDelete: "CASCADE",
+});
+
+Review.belongsTo(Product, {
+  foreignKey: "product_id",
+  as: "product",
+});
+
 export {
   Category,
   Product,
@@ -141,4 +166,5 @@ export {
   OrderItem,
   Wishlist,
   User,
+  Review,
 };

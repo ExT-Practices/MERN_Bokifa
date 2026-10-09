@@ -18,6 +18,7 @@ const HorrorPage = () => {
   const [openFilters, setOpenFilters] = useState({});
   const minGap = 1;
   const priceMax = 359;
+  const [stockQty, setStockQty] = useState();
   const [minPrice, setMinPrice] = useState(0);
   const [maxPrice, setMaxPrice] = useState(359);
   const minPercent = (minPrice / priceMax) * 100;
@@ -533,7 +534,6 @@ const HorrorPage = () => {
                 <ap-safesticky
                   className="product-facet-aside-inner"
                   offset="30"
-                  style={{ top: "-322.817px" }}
                 >
                   <div className="product-facet-filters-header hide-on-pocket">
                     <p className="heading h6">Filters</p>
@@ -743,8 +743,8 @@ const HorrorPage = () => {
       to right,
       rgb(226, 226, 226) 0%,
       rgb(226, 226, 226) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${maxPercent}%,
+      rgb(2, 122, 54) ${minPercent}%,
+      rgb(2, 122, 54) ${maxPercent}%,
       rgb(226, 226, 226) ${maxPercent}%,
       rgb(226, 226, 226) 100%
     )`,

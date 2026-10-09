@@ -18,6 +18,7 @@ const NewBooks = () => {
   const [totalPages, setTotalPages] = useState(1);
   const productListRef = useRef(null);
   const { addToCart } = useCart();
+  const [stockQty, setStockQty] = useState();
   const { isWishlisted, toggleWishlist, wishlistUpdatingId } = useWishlist();
   const minGap = 1;
   const priceMax = 359;
@@ -149,54 +150,51 @@ const NewBooks = () => {
     overlay?.addEventListener("click", closeDrawer);
 
     // Filter accordions
-    document
-      .querySelectorAll(".product-facet-filter-item")
-      .forEach((item) => {
-        const button = item.querySelector(".collapsible-toggle");
-        const content = item.querySelector(".collapsible");
-        const icon = item.querySelector(".icon-chevron-down");
+    document.querySelectorAll(".product-facet-filter-item").forEach((item) => {
+      const button = item.querySelector(".collapsible-toggle");
+      const content = item.querySelector(".collapsible");
+      const icon = item.querySelector(".icon-chevron-down");
 
-        if (!button || !content) return;
+      if (!button || !content) return;
 
-        const setOpenState = (isOpen) => {
-          if (isOpen) {
-            content.style.height = `${content.scrollHeight}px`;
-            if (icon) icon.style.transform = "rotate(180deg)";
-          } else {
+      const setOpenState = (isOpen) => {
+        if (isOpen) {
+          content.style.height = `${content.scrollHeight}px`;
+          if (icon) icon.style.transform = "rotate(180deg)";
+        } else {
+          content.style.height = "0px";
+          if (icon) icon.style.transform = "rotate(0deg)";
+        }
+        content.style.overflow = "hidden";
+        content.style.transition = "height 0.3s ease";
+        if (icon) icon.style.transition = "transform 0.3s ease";
+        button.setAttribute("ap-expanded-aria", isOpen ? "true" : "false");
+      };
+
+      const initiallyOpen = button.getAttribute("ap-expanded-aria") === "true";
+      setOpenState(initiallyOpen);
+
+      const handleClick = () => {
+        const isOpen = button.getAttribute("ap-expanded-aria") === "true";
+        if (isOpen) {
+          content.style.height = `${content.scrollHeight}px`;
+          requestAnimationFrame(() => {
             content.style.height = "0px";
-            if (icon) icon.style.transform = "rotate(0deg)";
-          }
-          content.style.overflow = "hidden";
-          content.style.transition = "height 0.3s ease";
-          if (icon) icon.style.transition = "transform 0.3s ease";
-          button.setAttribute("ap-expanded-aria", isOpen ? "true" : "false");
-        };
+          });
+          button.setAttribute("ap-expanded-aria", "false");
+          if (icon) icon.style.transform = "rotate(0deg)";
+        } else {
+          content.style.height = `${content.scrollHeight}px`;
+          button.setAttribute("ap-expanded-aria", "true");
+          if (icon) icon.style.transform = "rotate(180deg)";
+        }
+      };
 
-        const initiallyOpen =
-          button.getAttribute("ap-expanded-aria") === "true";
-        setOpenState(initiallyOpen);
-
-        const handleClick = () => {
-          const isOpen = button.getAttribute("ap-expanded-aria") === "true";
-          if (isOpen) {
-            content.style.height = `${content.scrollHeight}px`;
-            requestAnimationFrame(() => {
-              content.style.height = "0px";
-            });
-            button.setAttribute("ap-expanded-aria", "false");
-            if (icon) icon.style.transform = "rotate(0deg)";
-          } else {
-            content.style.height = `${content.scrollHeight}px`;
-            button.setAttribute("ap-expanded-aria", "true");
-            if (icon) icon.style.transform = "rotate(180deg)";
-          }
-        };
-
-        button.addEventListener("click", handleClick);
-        accordionCleanups.push(() =>
-          button.removeEventListener("click", handleClick),
-        );
-      });
+      button.addEventListener("click", handleClick);
+      accordionCleanups.push(() =>
+        button.removeEventListener("click", handleClick),
+      );
+    });
 
     // Price range
     const wrapper = document.querySelector(".price-range");
@@ -288,8 +286,7 @@ const NewBooks = () => {
     const radios = popover?.querySelectorAll("input[type='radio']") || [];
     const productContainer = document.getElementById("ap_productlist");
     const getTitle = (product) =>
-      product.querySelector(".product-card-title")?.innerText.trim() ||
-      "";
+      product.querySelector(".product-card-title")?.innerText.trim() || "";
     const getPrice = (product) =>
       parseFloat(
         product.querySelector(".price")?.innerText.replace(/[^0-9.]/g, ""),
@@ -478,9 +475,7 @@ const NewBooks = () => {
                 onClick={() => setIsFilterOpen(false)}
               />
               <div
-                className={`product-facet-aside ${
-                  isFilterOpen ? "open" : ""
-                }`}
+                className={`product-facet-aside ${isFilterOpen ? "open" : ""}`}
               >
                 <div className="product-facet-categories hide-on-pocket">
                   <div className="collapsible-toggle product-facet-categories-title heading h6 product-facet-filters-header">
@@ -516,7 +511,6 @@ const NewBooks = () => {
                 <ap-safesticky
                   className="product-facet-aside-inner"
                   offset="30"
-                  style={{ top: "-322.817px" }}
                 >
                   <div className="product-facet-filters-header hide-on-pocket">
                     <p className="heading h6">Filters</p>
@@ -527,15 +521,32 @@ const NewBooks = () => {
                     always-visible=""
                   >
                     <header className="drawer__header hide-on-laptop-up">
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <p className="drawer__title heading h6" style={{ margin: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                        }}
+                      >
+                        <p
+                          className="drawer__title heading h6"
+                          style={{ margin: 0 }}
+                        >
                           Filters
                         </p>
                         <button
                           type="button"
                           className="drawer__header-action link text--subdued"
                           onClick={handleClearAll}
-                          style={{ margin: 0, textDecoration: "underline", background: "none", border: "none", color: "#027a36", cursor: "pointer", fontSize: "14px" }}
+                          style={{
+                            margin: 0,
+                            textDecoration: "underline",
+                            background: "none",
+                            border: "none",
+                            color: "#027a36",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                          }}
                         >
                           Clear all
                         </button>
@@ -722,8 +733,8 @@ const NewBooks = () => {
       to right,
       rgb(226, 226, 226) 0%,
       rgb(226, 226, 226) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${maxPercent}%,
+      rgb(2, 122, 54) ${minPercent}%,
+      rgb(2, 122, 54) ${maxPercent}%,
       rgb(226, 226, 226) ${maxPercent}%,
       rgb(226, 226, 226) 100%
     )`,
@@ -1688,10 +1699,7 @@ const NewBooks = () => {
                                     </span>
                                   </div>
                                 </div>
-                                <a
-                                  href="#"
-                                  className="product-card-title mb-1"
-                                >
+                                <a href="#" className="product-card-title mb-1">
                                   {product.title}
                                 </a>
                                 <div className="product-author my-2">
@@ -1725,9 +1733,15 @@ const NewBooks = () => {
                                           e.preventDefault();
                                           if (stockQty <= 0) return;
                                           try {
-                                            await addToCart(product.product_id, 1);
+                                            await addToCart(
+                                              product.product_id,
+                                              1,
+                                            );
                                           } catch (error) {
-                                            console.error("Add To Cart Error:", error);
+                                            console.error(
+                                              "Add To Cart Error:",
+                                              error,
+                                            );
                                           }
                                         }}
                                       >

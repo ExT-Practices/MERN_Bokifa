@@ -28,6 +28,16 @@ const AdminSidebar = ({ isOpen, onCloseMobile }) => {
       icon: "fa-solid fa-cart-shopping",
       label: "Orders",
     },
+    {
+      path: "/admin/reviews",
+      icon: "fa-solid fa-star",
+      label: "Reviews",
+    },
+    {
+      path: "/admin/payments",
+      icon: "fa-solid fa-credit-card",
+      label: "Payments",
+    },
     { path: "/admin/users", icon: "fa-solid fa-users", label: "Users" },
     { path: "/admin/profile", icon: "fa-solid fa-user-gear", label: "Profile" },
   ];

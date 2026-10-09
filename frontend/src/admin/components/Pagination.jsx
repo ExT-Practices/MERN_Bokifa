@@ -3,9 +3,23 @@ import React from "react";
 const Pagination = ({ pagination, onPageChange }) => {
   if (!pagination || pagination.totalPages <= 1) return null;
 
-  const { currentPage, totalPages, totalProducts, totalOrders, totalUsers } = pagination;
+  const {
+    currentPage,
+    totalPages,
+    totalProducts,
+    totalOrders,
+    totalUsers,
+    totalReviews,
+    totalPayments,
+    total,
+  } = pagination;
 
-  const totalItems = totalProducts || totalOrders || totalUsers || null;
+  const totalItems =
+    totalReviews !== undefined
+      ? totalReviews
+      : totalPayments !== undefined
+        ? totalPayments
+        : totalProducts || totalOrders || totalUsers || total || null;
 
   const pages = [];
   const startPage = Math.max(1, currentPage - 2);
@@ -20,9 +34,7 @@ const Pagination = ({ pagination, onPageChange }) => {
       <div className="text-muted small">
         Page <span className="fw-bold text-dark">{currentPage}</span> of{" "}
         <span className="fw-bold text-dark">{totalPages}</span>
-        {totalItems && (
-          <span className="ms-2">({totalItems} total items)</span>
-        )}
+        {totalItems && <span className="ms-2">({totalItems} total items)</span>}
       </div>
 
       <nav aria-label="Table Navigation">
@@ -40,10 +52,7 @@ const Pagination = ({ pagination, onPageChange }) => {
           {startPage > 1 && (
             <>
               <li className="page-item">
-                <button
-                  className="page-link"
-                  onClick={() => onPageChange(1)}
-                >
+                <button className="page-link" onClick={() => onPageChange(1)}>
                   1
                 </button>
               </li>
@@ -60,10 +69,7 @@ const Pagination = ({ pagination, onPageChange }) => {
               key={page}
               className={`page-item ${page === currentPage ? "active" : ""}`}
             >
-              <button
-                className="page-link"
-                onClick={() => onPageChange(page)}
-              >
+              <button className="page-link" onClick={() => onPageChange(page)}>
                 {page}
               </button>
             </li>
@@ -87,7 +93,9 @@ const Pagination = ({ pagination, onPageChange }) => {
             </>
           )}
 
-          <li className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}>
+          <li
+            className={`page-item ${currentPage === totalPages ? "disabled" : ""}`}
+          >
             <button
               className="page-link px-3"
               onClick={() => onPageChange(currentPage + 1)}

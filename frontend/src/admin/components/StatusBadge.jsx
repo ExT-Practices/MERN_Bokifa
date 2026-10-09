@@ -41,6 +41,26 @@ const StatusBadge = ({ status }) => {
       iconClass = "fa-solid fa-check-double";
       label = "Paid";
       break;
+    case "failed":
+      iconClass = "fa-solid fa-circle-xmark";
+      label = "Failed";
+      break;
+    case "approved":
+      iconClass = "fa-solid fa-circle-check";
+      label = "Approved";
+      break;
+    case "rejected":
+      iconClass = "fa-solid fa-circle-xmark";
+      label = "Rejected";
+      break;
+    case "cod":
+      iconClass = "fa-solid fa-hand-holding-dollar";
+      label = "Cash on Delivery";
+      break;
+    case "online":
+      iconClass = "fa-solid fa-credit-card";
+      label = "Razorpay / Online";
+      break;
     case "active":
     case "true":
       iconClass = "fa-solid fa-toggle-on";

@@ -292,8 +292,7 @@ const FantasyPage = () => {
     const radios = popover?.querySelectorAll("input[type='radio']") || [];
     const productContainer = document.getElementById("ap_productlist");
     const getTitle = (product) =>
-      product.querySelector(".product-card-title")?.innerText.trim() ||
-      "";
+      product.querySelector(".product-card-title")?.innerText.trim() || "";
     const getPrice = (product) =>
       parseFloat(
         product.querySelector(".price")?.innerText.replace(/[^0-9.]/g, ""),
@@ -525,9 +524,7 @@ const FantasyPage = () => {
                 onClick={() => setIsFilterOpen(false)}
               />
               <div
-                className={`product-facet-aside ${
-                  isFilterOpen ? "open" : ""
-                }`}
+                className={`product-facet-aside ${isFilterOpen ? "open" : ""}`}
               >
                 <div className="product-facet-categories hide-on-pocket">
                   <div className="collapsible-toggle product-facet-categories-title heading h6 product-facet-filters-header">
@@ -563,7 +560,6 @@ const FantasyPage = () => {
                 <ap-safesticky
                   className="product-facet-aside-inner"
                   offset="30"
-                  style={{ top: "-322.817px" }}
                 >
                   <div className="product-facet-filters-header hide-on-pocket">
                     <p className="heading h6">Filters</p>
@@ -575,15 +571,32 @@ const FantasyPage = () => {
                     always-visible=""
                   >
                     <header className="drawer__header hide-on-laptop-up">
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <p className="drawer__title heading h6" style={{ margin: 0 }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "12px",
+                        }}
+                      >
+                        <p
+                          className="drawer__title heading h6"
+                          style={{ margin: 0 }}
+                        >
                           Filters
                         </p>
                         <button
                           type="button"
                           className="drawer__header-action link text--subdued"
                           onClick={handleClearAll}
-                          style={{ margin: 0, textDecoration: "underline", background: "none", border: "none", color: "#027a36", cursor: "pointer", fontSize: "14px" }}
+                          style={{
+                            margin: 0,
+                            textDecoration: "underline",
+                            background: "none",
+                            border: "none",
+                            color: "#027a36",
+                            cursor: "pointer",
+                            fontSize: "14px",
+                          }}
                         >
                           Clear all
                         </button>
@@ -756,8 +769,8 @@ const FantasyPage = () => {
       to right,
       rgb(226, 226, 226) 0%,
       rgb(226, 226, 226) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${maxPercent}%,
+      rgb(2, 122, 54) ${minPercent}%,
+      rgb(2, 122, 54) ${maxPercent}%,
       rgb(226, 226, 226) ${maxPercent}%,
       rgb(226, 226, 226) 100%
     )`,
@@ -1727,10 +1740,7 @@ const FantasyPage = () => {
                                     </span>
                                   </div>
                                 </div>
-                                <a
-                                  href="#"
-                                  className="product-card-title mb-1"
-                                >
+                                <a href="#" className="product-card-title mb-1">
                                   {product.title}
                                 </a>
                                 <div className="product-author my-2">
@@ -1764,9 +1774,15 @@ const FantasyPage = () => {
                                           e.preventDefault();
                                           if (stockQty <= 0) return;
                                           try {
-                                            await addToCart(product.product_id, 1);
+                                            await addToCart(
+                                              product.product_id,
+                                              1,
+                                            );
                                           } catch (error) {
-                                            console.error("Add To Cart Error:", error);
+                                            console.error(
+                                              "Add To Cart Error:",
+                                              error,
+                                            );
                                           }
                                         }}
                                       >

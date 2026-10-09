@@ -4,7 +4,13 @@ import { getAdminStats } from "../../api/dashboardApi";
 import { getAllOrders } from "../../api/orderApi";
 import { getAllUsers } from "../../api/userApi";
 import StatusBadge from "../components/StatusBadge";
-import { CardSkeleton, TableSkeleton } from "../components/SkeletonLoader";
+import {
+  CardSkeleton,
+  TableSkeleton,
+  ChartSkeleton,
+} from "../components/SkeletonLoader";
+import MonthlyRevenueChart from "../components/MonthlyRevenueChart";
+import OrderStatusChart from "../components/OrderStatusChart";
 
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
@@ -86,7 +92,9 @@ const Dashboard = () => {
             onClick={fetchDashboardData}
             disabled={loadingStats}
           >
-            <i className={`fa-solid fa-arrows-rotate ${loadingStats ? "fa-spin" : ""}`}></i>
+            <i
+              className={`fa-solid fa-arrows-rotate ${loadingStats ? "fa-spin" : ""}`}
+            ></i>
             Refresh Data
           </button>
         </div>
@@ -98,7 +106,10 @@ const Dashboard = () => {
             <i className="fa-solid fa-triangle-exclamation me-2"></i>
             {error}
           </div>
-          <button className="btn btn-sm btn-outline-danger" onClick={fetchDashboardData}>
+          <button
+            className="btn btn-sm btn-outline-danger"
+            onClick={fetchDashboardData}
+          >
             Retry
           </button>
         </div>
@@ -181,27 +192,82 @@ const Dashboard = () => {
       <div className="row g-3 mb-4">
         <div className="col-6 col-md-3">
           <div className="p-3 bg-white border rounded-3 text-center">
-            <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Processing</small>
+            <small
+              className="text-muted text-uppercase fw-bold"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Processing
+            </small>
             <h4 className="fw-bold m-0 mt-1">{stats?.processingOrders || 0}</h4>
           </div>
         </div>
         <div className="col-6 col-md-3">
           <div className="p-3 bg-white border rounded-3 text-center">
-            <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Shipped</small>
+            <small
+              className="text-muted text-uppercase fw-bold"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Shipped
+            </small>
             <h4 className="fw-bold m-0 mt-1">{stats?.shippedOrders || 0}</h4>
           </div>
         </div>
         <div className="col-6 col-md-3">
           <div className="p-3 bg-white border rounded-3 text-center">
-            <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Cancelled</small>
-            <h4 className="fw-bold m-0 mt-1 text-danger">{stats?.cancelledOrders || 0}</h4>
+            <small
+              className="text-muted text-uppercase fw-bold"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Cancelled
+            </small>
+            <h4 className="fw-bold m-0 mt-1 text-danger">
+              {stats?.cancelledOrders || 0}
+            </h4>
           </div>
         </div>
         <div className="col-6 col-md-3">
           <div className="p-3 bg-white border rounded-3 text-center">
-            <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Paid Online</small>
-            <h4 className="fw-bold m-0 mt-1 text-success">{stats?.paidOrders || 0}</h4>
+            <small
+              className="text-muted text-uppercase fw-bold"
+              style={{ fontSize: "0.7rem" }}
+            >
+              Paid Online
+            </small>
+            <h4 className="fw-bold m-0 mt-1 text-success">
+              {stats?.paidOrders || 0}
+            </h4>
           </div>
+        </div>
+      </div>
+
+      {/* Analytics Charts Section */}
+      <div className="row g-4 mb-4">
+        {/* 6-Month Monthly Revenue & Orders Bar Chart */}
+        <div className="col-12 col-xl-8">
+          {loadingStats ? (
+            <div className="admin-card mb-0 h-100">
+              <div className="admin-card-header">
+                <span className="placeholder col-4 rounded py-2"></span>
+              </div>
+              <ChartSkeleton height={320} />
+            </div>
+          ) : (
+            <MonthlyRevenueChart data={stats?.monthlyAnalytics || []} />
+          )}
+        </div>
+
+        {/* Order Status Breakdown Doughnut Chart */}
+        <div className="col-12 col-xl-4">
+          {loadingStats ? (
+            <div className="admin-card mb-0 h-100">
+              <div className="admin-card-header">
+                <span className="placeholder col-4 rounded py-2"></span>
+              </div>
+              <ChartSkeleton height={320} />
+            </div>
+          ) : (
+            <OrderStatusChart data={stats?.orderStatusBreakdown || []} />
+          )}
         </div>
       </div>
 
@@ -212,7 +278,10 @@ const Dashboard = () => {
           <div className="admin-card mb-0">
             <div className="admin-card-header">
               <h2 className="admin-card-title">Recent Orders</h2>
-              <Link to="/admin/orders" className="btn btn-sm btn-link text-decoration-none">
+              <Link
+                to="/admin/orders"
+                className="btn btn-sm btn-link text-decoration-none"
+              >
                 View All Orders <i className="fa-solid fa-arrow-right ms-1"></i>
               </Link>
             </div>
@@ -242,19 +311,31 @@ const Dashboard = () => {
                     recentOrders.map((order) => (
                       <tr key={order.order_id}>
                         <td>
-                          <span className="fw-bold text-primary">#{order.order_number}</span>
+                          <span className="fw-bold text-primary">
+                            #{order.order_number}
+                          </span>
                         </td>
                         <td>
-                          <div className="fw-semibold">{order.shipping_name || order.user?.name || "Customer"}</div>
-                          <small className="text-muted d-block">{order.user?.email || ""}</small>
+                          <div className="fw-semibold">
+                            {order.shipping_name ||
+                              order.user?.name ||
+                              "Customer"}
+                          </div>
+                          <small className="text-muted d-block">
+                            {order.user?.email || ""}
+                          </small>
                         </td>
                         <td className="text-muted small">
-                          {new Date(order.createdAt || order.created_at).toLocaleDateString("en-IN", {
+                          {new Date(
+                            order.createdAt || order.created_at,
+                          ).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
                           })}
                         </td>
-                        <td className="fw-bold">{formatCurrency(order.total_amount)}</td>
+                        <td className="fw-bold">
+                          {formatCurrency(order.total_amount)}
+                        </td>
                         <td>
                           <StatusBadge status={order.payment_status} />
                         </td>
@@ -283,7 +364,10 @@ const Dashboard = () => {
           <div className="admin-card mb-0">
             <div className="admin-card-header">
               <h2 className="admin-card-title">Recent Customers</h2>
-              <Link to="/admin/users" className="btn btn-sm btn-link text-decoration-none">
+              <Link
+                to="/admin/users"
+                className="btn btn-sm btn-link text-decoration-none"
+              >
                 View All
               </Link>
             </div>
@@ -304,17 +388,34 @@ const Dashboard = () => {
                   </li>
                 ) : (
                   recentUsers.map((user) => (
-                    <li key={user.id} className="list-group-item d-flex align-items-center justify-content-between p-3">
+                    <li
+                      key={user.id}
+                      className="list-group-item d-flex align-items-center justify-content-between p-3"
+                    >
                       <div className="d-flex align-items-center gap-3">
-                        <div className="avatar-sm rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold" style={{ width: "36px", height: "36px" }}>
+                        <div
+                          className="avatar-sm rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold"
+                          style={{ width: "36px", height: "36px" }}
+                        >
                           {user.name ? user.name.charAt(0).toUpperCase() : "U"}
                         </div>
                         <div>
-                          <div className="fw-semibold text-dark small">{user.name}</div>
-                          <small className="text-muted d-block" style={{ fontSize: "0.75rem" }}>{user.email}</small>
+                          <div className="fw-semibold text-dark small">
+                            {user.name}
+                          </div>
+                          <small
+                            className="text-muted d-block"
+                            style={{ fontSize: "0.75rem" }}
+                          >
+                            {user.email}
+                          </small>
                         </div>
                       </div>
-                      <Link to={`/admin/users/${user.id}`} className="btn btn-sm btn-outline-secondary py-1 px-2" style={{ fontSize: "0.75rem" }}>
+                      <Link
+                        to={`/admin/users/${user.id}`}
+                        className="btn btn-sm btn-outline-secondary py-1 px-2"
+                        style={{ fontSize: "0.75rem" }}
+                      >
                         View
                       </Link>
                     </li>

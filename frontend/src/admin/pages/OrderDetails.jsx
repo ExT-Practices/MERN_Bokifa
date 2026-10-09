@@ -82,7 +82,10 @@ const OrderDetails = () => {
       }
     } catch (err) {
       console.error(err);
-      addToast(err.response?.data?.message || "Failed to update status.", "error");
+      addToast(
+        err.response?.data?.message || "Failed to update status.",
+        "error",
+      );
     } finally {
       setUpdatingStatus(false);
     }
@@ -101,7 +104,10 @@ const OrderDetails = () => {
       }
     } catch (err) {
       console.error(err);
-      addToast(err.response?.data?.message || "Failed to cancel order.", "error");
+      addToast(
+        err.response?.data?.message || "Failed to cancel order.",
+        "error",
+      );
     } finally {
       setCancelling(false);
       setCancelModalOpen(false);
@@ -114,14 +120,20 @@ const OrderDetails = () => {
     try {
       const res = await refundOrder(order.order_id);
       if (res.success) {
-        addToast("Razorpay refund initiated and order cancelled successfully.", "success");
+        addToast(
+          "Razorpay refund initiated and order cancelled successfully.",
+          "success",
+        );
         fetchOrderDetails();
       } else {
         addToast(res.message || "Refund failed.", "error");
       }
     } catch (err) {
       console.error(err);
-      addToast(err.response?.data?.message || "Refund operation failed.", "error");
+      addToast(
+        err.response?.data?.message || "Refund operation failed.",
+        "error",
+      );
     } finally {
       setRefunding(false);
       setRefundModalOpen(false);
@@ -136,25 +148,37 @@ const OrderDetails = () => {
     }).format(val || 0);
   };
 
+  const formatFullDateTime = (dateStr) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
+
   if (loading) {
     return (
-      <div className="text-center py-5">
+      <div className="admin-order-details-loading text-center py-5">
         <div className="spinner-border text-primary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
-        <p className="mt-2 text-muted">Loading order details...</p>
+        <p className="mt-3 text-muted fw-medium">Loading order details...</p>
       </div>
     );
   }
 
   if (error || !order) {
     return (
-      <div className="alert alert-danger my-4 p-4 text-center">
-        <i className="fa-solid fa-circle-exclamation fs-3 mb-2 d-block"></i>
-        <h5>Failed to Load Order</h5>
-        <p>{error || "Order not found."}</p>
+      <div className="admin-order-details-error alert alert-danger my-4 p-4 text-center">
+        <i className="fa-solid fa-circle-exclamation fs-2 mb-2 d-block text-danger"></i>
+        <h4 className="fw-bold">Failed to Load Order</h4>
+        <p className="text-muted mb-3">{error || "Order not found."}</p>
         <Link to="/admin/orders" className="btn btn-outline-danger">
-          Back to Orders List
+          <i className="fa-solid fa-arrow-left me-2"></i> Back to Orders List
         </Link>
       </div>
     );
@@ -162,10 +186,11 @@ const OrderDetails = () => {
 
   const isCancelled = order.status === "cancelled";
   const isDelivered = order.status === "delivered";
-  const isPaidOnline = order.payment_method === "online" && order.payment_status === "paid";
+  const isPaidOnline =
+    order.payment_method === "online" && order.payment_status === "paid";
 
   return (
-    <div>
+    <div className="admin-order-details-page">
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
       {/* Cancel Confirmation Modal */}
@@ -192,51 +217,69 @@ const OrderDetails = () => {
         onClose={() => setRefundModalOpen(false)}
       />
 
-      <div className="admin-page-header">
-        <div>
-          <div className="d-flex align-items-center gap-3">
-            <h1 className="admin-page-title m-0">Order #{order.order_number}</h1>
-            <StatusBadge status={order.status} />
-            <StatusBadge status={order.payment_status} />
+      {/* Order Details Header */}
+      <div className="admin-order-details-header">
+        <div className="admin-order-details-header-info">
+          <div className="admin-order-details-title-row">
+            <h1 className="admin-order-details-title">
+              Order #{order.order_number}
+            </h1>
+            <div className="admin-order-details-badges">
+              <StatusBadge status={order.status} />
+              <StatusBadge status={order.payment_status} />
+            </div>
           </div>
-          <p className="admin-page-subtitle">
-            Placed on{" "}
-            {new Date(order.createdAt || order.created_at).toLocaleString("en-IN", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
+          <p className="admin-order-details-meta">
+            <i className="fa-regular fa-calendar me-1"></i>
+            <span>
+              Placed on{" "}
+              {formatFullDateTime(order.createdAt || order.created_at)}
+            </span>
           </p>
         </div>
-        <div>
-          <Link to="/admin/orders" className="btn btn-outline-secondary">
-            <i className="fa-solid fa-arrow-left me-1"></i> Back to Orders
+
+        <div className="admin-order-details-header-actions">
+          <Link to="/admin/orders" className="btn admin-order-back-btn">
+            <i className="fa-solid fa-arrow-left me-2"></i>
+            <span>Back to Orders</span>
           </Link>
         </div>
       </div>
 
-      <div className="row g-4">
-        {/* Left Column: Line Items & Summary */}
-        <div className="col-12 col-lg-8">
-          {/* Order Items Table */}
-          <div className="admin-card">
+      {/* 2-Column Responsive Grid */}
+      <div className="admin-order-details-grid">
+        {/* Left / Main Column: Items, Summary, Shipping */}
+        <div className="admin-order-details-main">
+          {/* Ordered Items Card */}
+          <div className="admin-card admin-order-items-card">
             <div className="admin-card-header">
-              <h2 className="admin-card-title">Ordered Items ({order.items?.length || 0})</h2>
+              <div className="d-flex align-items-center gap-2">
+                <i className="fa-solid fa-bag-shopping text-primary"></i>
+                <h2 className="admin-card-title">
+                  Ordered Items ({order.items?.length || 0})
+                </h2>
+              </div>
             </div>
-            <div className="admin-table-container">
-              <table className="admin-table">
+
+            {/* Desktop Table for Items */}
+            <div className="admin-table-container d-none d-sm-block">
+              <table className="admin-table admin-order-items-table">
                 <thead>
                   <tr>
                     <th>Product</th>
-                    <th>Price</th>
-                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th className="text-center">Qty</th>
                     <th className="text-end">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {order.items?.map((item) => (
-                    <tr key={item.order_item_id}>
+                    <tr
+                      key={item.order_item_id}
+                      className="admin-order-item-row"
+                    >
                       <td>
-                        <div className="d-flex align-items-center gap-3">
+                        <div className="admin-order-item-product">
                           {item.product?.image ? (
                             <img
                               src={
@@ -245,105 +288,226 @@ const OrderDetails = () => {
                                   : `http://localhost:5000${item.product.image}`
                               }
                               alt={item.product_title}
-                              className="rounded border object-fit-cover"
-                              style={{ width: "40px", height: "50px" }}
+                              className="admin-order-item-image"
                             />
                           ) : (
-                            <div
-                              className="rounded border bg-light d-flex align-items-center justify-content-center text-muted"
-                              style={{ width: "40px", height: "50px" }}
-                            >
+                            <div className="admin-order-item-placeholder">
                               <i className="fa-solid fa-book"></i>
                             </div>
                           )}
-                          <div>
-                            <div className="fw-bold text-dark">{item.product_title}</div>
+                          <div className="admin-order-item-details">
+                            <span className="admin-order-item-title">
+                              {item.product_title}
+                            </span>
                             {item.product?.author && (
-                              <small className="text-muted">By {item.product.author}</small>
+                              <span className="admin-order-item-author">
+                                By {item.product.author}
+                              </span>
                             )}
                           </div>
                         </div>
                       </td>
-                      <td>{formatCurrency(item.product_price)}</td>
-                      <td className="fw-bold">x{item.quantity}</td>
-                      <td className="text-end fw-bold">{formatCurrency(item.subtotal)}</td>
+                      <td className="admin-order-item-price">
+                        {formatCurrency(item.product_price)}
+                      </td>
+                      <td className="text-center">
+                        <span className="admin-order-item-qty">
+                          x{item.quantity}
+                        </span>
+                      </td>
+                      <td className="text-end admin-order-item-subtotal">
+                        {formatCurrency(item.subtotal)}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Subtotal & Financial Breakdown */}
-            <div className="p-4 border-top bg-light">
-              <div className="row justify-content-end">
-                <div className="col-12 col-md-6 col-lg-5">
-                  <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted">Subtotal:</span>
-                    <span className="fw-semibold">{formatCurrency(order.subtotal)}</span>
+            {/* Mobile View for Items */}
+            <div className="admin-order-items-mobile-list d-sm-none">
+              {order.items?.map((item) => (
+                <div
+                  key={item.order_item_id}
+                  className="admin-order-item-mobile-card"
+                >
+                  <div className="admin-order-item-product">
+                    {item.product?.image ? (
+                      <img
+                        src={
+                          item.product.image.startsWith("http")
+                            ? item.product.image
+                            : `http://localhost:5000${item.product.image}`
+                        }
+                        alt={item.product_title}
+                        className="admin-order-item-image"
+                      />
+                    ) : (
+                      <div className="admin-order-item-placeholder">
+                        <i className="fa-solid fa-book"></i>
+                      </div>
+                    )}
+                    <div className="admin-order-item-details">
+                      <span className="admin-order-item-title">
+                        {item.product_title}
+                      </span>
+                      {item.product?.author && (
+                        <span className="admin-order-item-author">
+                          By {item.product.author}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted">Shipping Charge:</span>
-                    <span className="fw-semibold">{formatCurrency(order.shipping_charge)}</span>
-                  </div>
-                  <div className="d-flex justify-content-between mb-2">
-                    <span className="text-muted">Discount:</span>
-                    <span className="fw-semibold text-success">
-                      -{formatCurrency(order.discount)}
-                    </span>
-                  </div>
-                  <hr />
-                  <div className="d-flex justify-content-between fs-5 fw-bold text-dark">
-                    <span>Total Amount:</span>
-                    <span className="text-primary">{formatCurrency(order.total_amount)}</span>
+                  <div className="admin-order-item-mobile-pricing">
+                    <div className="admin-order-item-mobile-meta">
+                      <span>{formatCurrency(item.product_price)}</span>
+                      <span className="admin-order-item-qty">
+                        x{item.quantity}
+                      </span>
+                    </div>
+                    <div className="admin-order-item-subtotal">
+                      {formatCurrency(item.subtotal)}
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Financial Breakdown / Summary inside Card */}
+            <div className="admin-order-financial-breakdown">
+              <div className="admin-order-financial-row">
+                <span className="admin-order-financial-label">Subtotal</span>
+                <span className="admin-order-financial-val">
+                  {formatCurrency(order.subtotal)}
+                </span>
+              </div>
+              <div className="admin-order-financial-row">
+                <span className="admin-order-financial-label">
+                  Shipping Charge
+                </span>
+                <span className="admin-order-financial-val">
+                  {Number(order.shipping_charge) === 0 ? (
+                    <span className="text-success fw-semibold">Free</span>
+                  ) : (
+                    formatCurrency(order.shipping_charge)
+                  )}
+                </span>
+              </div>
+              {Number(order.discount) > 0 && (
+                <div className="admin-order-financial-row">
+                  <span className="admin-order-financial-label">
+                    Discount Applied
+                  </span>
+                  <span className="admin-order-financial-val text-success fw-semibold">
+                    -{formatCurrency(order.discount)}
+                  </span>
+                </div>
+              )}
+              <div className="admin-order-financial-divider"></div>
+              <div className="admin-order-financial-row admin-order-financial-total">
+                <span className="admin-order-financial-total-label">
+                  Total Amount
+                </span>
+                <span className="admin-order-financial-total-val">
+                  {formatCurrency(order.total_amount)}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Shipping Address Snapshot */}
-          <div className="admin-card">
+          {/* Shipping Address Card */}
+          <div className="admin-card admin-order-shipping-card">
             <div className="admin-card-header">
-              <h2 className="admin-card-title">Shipping Address</h2>
+              <div className="d-flex align-items-center gap-2">
+                <i className="fa-solid fa-location-dot text-primary"></i>
+                <h2 className="admin-card-title">
+                  Shipping & Delivery Details
+                </h2>
+              </div>
             </div>
             <div className="admin-card-body">
-              <div className="fw-bold fs-6 text-dark mb-1">{order.shipping_name}</div>
-              <div className="text-muted mb-2">
-                <i className="fa-solid fa-phone me-2"></i>
-                {order.shipping_phone || "No phone provided"}
-              </div>
-              <div className="text-secondary" style={{ lineHeight: "1.6" }}>
-                {order.shipping_address_line1}
-                {order.shipping_address_line2 && `, ${order.shipping_address_line2}`}
-                <br />
-                {order.shipping_city}, {order.shipping_state} - {order.shipping_postal_code}
-                <br />
-                {order.shipping_country}
+              <div className="admin-order-shipping-grid">
+                <div className="admin-order-shipping-recipient">
+                  <div className="admin-order-shipping-avatar">
+                    <i className="fa-solid fa-user"></i>
+                  </div>
+                  <div>
+                    <h4 className="admin-order-shipping-name">
+                      {order.shipping_name || "Recipient Name Not Provided"}
+                    </h4>
+                    <div className="admin-order-shipping-phone">
+                      <i className="fa-solid fa-phone me-1 text-muted"></i>
+                      <span>{order.shipping_phone || "No phone provided"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="admin-order-shipping-address-block">
+                  <div className="admin-order-shipping-address-label">
+                    Delivery Address
+                  </div>
+                  <div className="admin-order-shipping-address-lines">
+                    <p className="m-0">
+                      {order.shipping_address_line1}
+                      {order.shipping_address_line2 &&
+                        `, ${order.shipping_address_line2}`}
+                    </p>
+                    <p className="m-0">
+                      {order.shipping_city}, {order.shipping_state} -{" "}
+                      <strong>{order.shipping_postal_code}</strong>
+                    </p>
+                    <p className="m-0 text-muted">
+                      {order.shipping_country || "India"}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Admin Actions & Customer Info */}
-        <div className="col-12 col-lg-4">
-          {/* Admin Order Status Control */}
-          <div className="admin-card">
+        {/* Right / Sidebar Column: Actions, Customer, Payment */}
+        <div className="admin-order-details-sidebar">
+          {/* Order Status Action Card */}
+          <div className="admin-card admin-order-status-card">
             <div className="admin-card-header">
-              <h2 className="admin-card-title">Order Status Action</h2>
+              <div className="d-flex align-items-center gap-2">
+                <i className="fa-solid fa-sliders text-primary"></i>
+                <h2 className="admin-card-title">Order Status Action</h2>
+              </div>
             </div>
             <div className="admin-card-body">
+              <div className="admin-order-current-status-box mb-3">
+                <span className="admin-order-status-box-label">
+                  Current Status
+                </span>
+                <div className="mt-1">
+                  <StatusBadge status={order.status} />
+                </div>
+              </div>
+
               {isCancelled || isDelivered ? (
-                <div className="alert alert-secondary m-0 small">
-                  <i className="fa-solid fa-info-circle me-1"></i>
-                  This order is <strong>{order.status}</strong> and its status cannot be changed further.
+                <div className="admin-order-status-locked-banner">
+                  <i className="fa-solid fa-lock text-muted me-2"></i>
+                  <span>
+                    This order is <strong>{order.status}</strong>. Its status is
+                    finalized and cannot be modified.
+                  </span>
                 </div>
               ) : (
-                <form onSubmit={handleUpdateStatus}>
-                  <label className="form-label font-weight-bold text-dark">
-                    Update Order Status
+                <form
+                  onSubmit={handleUpdateStatus}
+                  className="admin-order-status-form"
+                >
+                  <label
+                    htmlFor="order-status-select"
+                    className="form-label admin-order-form-label"
+                  >
+                    Change Status
                   </label>
                   <select
-                    className="form-select mb-3"
+                    id="order-status-select"
+                    className="form-select admin-order-select mb-3"
                     value={selectedStatus}
                     onChange={(e) => setSelectedStatus(e.target.value)}
                   >
@@ -356,97 +520,170 @@ const OrderDetails = () => {
 
                   <button
                     type="submit"
-                    className="btn btn-primary w-100 fw-bold shadow-sm mb-3"
+                    className="btn btn-primary w-100 admin-order-update-btn"
                     disabled={updatingStatus || selectedStatus === order.status}
                   >
-                    {updatingStatus ? "Updating..." : "Update Status"}
+                    {updatingStatus ? (
+                      <>
+                        <span
+                          className="spinner-border spinner-border-sm me-2"
+                          role="status"
+                          aria-hidden="true"
+                        ></span>
+                        Updating Status...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fa-solid fa-check me-2"></i> Update Status
+                      </>
+                    )}
                   </button>
                 </form>
               )}
 
-              {/* Danger Zone Actions */}
+              {/* Danger Zone / Admin Actions */}
               {!isCancelled && !isDelivered && (
-                <div className="border-top pt-3 mt-2 d-grid gap-2">
-                  {isPaidOnline && (
-                    <button
-                      type="button"
-                      className="btn btn-outline-warning text-dark font-weight-semibold"
-                      onClick={() => setRefundModalOpen(true)}
-                    >
-                      <i className="fa-solid fa-rotate-left me-1"></i> Refund via Razorpay
-                    </button>
-                  )}
+                <div className="admin-order-danger-zone mt-3 pt-3">
+                  <span className="admin-order-danger-title">
+                    Administrative Actions
+                  </span>
+                  <div className="admin-order-danger-actions mt-2">
+                    {isPaidOnline && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-warning text-dark w-100 admin-order-refund-btn"
+                        onClick={() => setRefundModalOpen(true)}
+                      >
+                        <i className="fa-solid fa-rotate-left me-2"></i>
+                        Refund via Razorpay
+                      </button>
+                    )}
 
-                  {order.status !== "shipped" && !isPaidOnline && (
-                    <button
-                      type="button"
-                      className="btn btn-outline-danger font-weight-semibold"
-                      onClick={() => setCancelModalOpen(true)}
-                    >
-                      <i className="fa-solid fa-ban me-1"></i> Cancel Order
-                    </button>
-                  )}
+                    {order.status !== "shipped" && !isPaidOnline && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger w-100 admin-order-cancel-btn"
+                        onClick={() => setCancelModalOpen(true)}
+                      >
+                        <i className="fa-solid fa-ban me-2"></i>
+                        Cancel Order
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Customer Account Info */}
-          <div className="admin-card">
+          {/* Customer Account Card */}
+          <div className="admin-card admin-order-customer-card">
             <div className="admin-card-header">
-              <h2 className="admin-card-title">Customer Account</h2>
+              <div className="d-flex align-items-center gap-2">
+                <i className="fa-solid fa-user-check text-primary"></i>
+                <h2 className="admin-card-title">Customer Account</h2>
+              </div>
             </div>
             <div className="admin-card-body">
               {order.user ? (
-                <div>
-                  <div className="d-flex align-items-center gap-3 mb-3">
-                    <div className="avatar-sm rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold" style={{ width: "42px", height: "42px" }}>
-                      {order.user.name ? order.user.name.charAt(0).toUpperCase() : "U"}
+                <div className="admin-order-customer-card-content">
+                  <div className="admin-order-customer-card-profile">
+                    <div className="admin-order-customer-card-avatar">
+                      {order.user.name
+                        ? order.user.name.charAt(0).toUpperCase()
+                        : "U"}
                     </div>
-                    <div>
-                      <div className="fw-bold text-dark">{order.user.name}</div>
-                      <small className="text-muted d-block">{order.user.email}</small>
+                    <div className="admin-order-customer-card-meta">
+                      <h4 className="admin-order-customer-card-name">
+                        {order.user.name}
+                      </h4>
+                      <span className="admin-order-customer-card-email">
+                        {order.user.email}
+                      </span>
                     </div>
                   </div>
                   <Link
                     to={`/admin/users/${order.user.id}`}
-                    className="btn btn-sm btn-outline-secondary w-100"
+                    className="btn btn-outline-secondary btn-sm w-100 admin-order-user-link-btn mt-3"
                   >
+                    <i className="fa-solid fa-user-gear me-2"></i>
                     View Customer Profile & History
                   </Link>
                 </div>
               ) : (
-                <p className="text-muted small m-0">Guest User</p>
+                <div className="admin-order-guest-box">
+                  <div className="admin-order-guest-icon">
+                    <i className="fa-solid fa-user-slash"></i>
+                  </div>
+                  <div className="admin-order-guest-text">
+                    <strong>Guest Customer</strong>
+                    <p className="m-0 text-muted small">
+                      This order was placed without registering an account.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
-          {/* Payment Info */}
-          <div className="admin-card">
+          {/* Payment Info Card */}
+          <div className="admin-card admin-order-payment-card">
             <div className="admin-card-header">
-              <h2 className="admin-card-title">Payment Info</h2>
+              <div className="d-flex align-items-center gap-2">
+                <i className="fa-solid fa-credit-card text-primary"></i>
+                <h2 className="admin-card-title">Payment Information</h2>
+              </div>
             </div>
             <div className="admin-card-body">
-              <div className="mb-2">
-                <small className="text-muted d-block text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Method</small>
-                <div className="fw-bold text-dark">
-                  {order.payment_method === "cod" ? "Cash on Delivery (COD)" : "Razorpay Online"}
+              <div className="admin-order-payment-info-row">
+                <span className="admin-order-payment-info-label">
+                  Payment Method
+                </span>
+                <div>
+                  <span
+                    className={`admin-order-method-badge ${order.payment_method === "cod" ? "cod" : "online"}`}
+                  >
+                    <i
+                      className={
+                        order.payment_method === "cod"
+                          ? "fa-solid fa-money-bill-wave"
+                          : "fa-solid fa-credit-card"
+                      }
+                    ></i>
+                    {order.payment_method === "cod"
+                      ? "Cash on Delivery (COD)"
+                      : "Razorpay Online"}
+                  </span>
                 </div>
               </div>
-              <div className="mb-2">
-                <small className="text-muted d-block text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Payment Status</small>
-                <StatusBadge status={order.payment_status} />
+
+              <div className="admin-order-payment-info-row mt-3">
+                <span className="admin-order-payment-info-label">
+                  Payment Status
+                </span>
+                <div>
+                  <StatusBadge status={order.payment_status} />
+                </div>
               </div>
+
               {order.razorpay_order_id && (
-                <div className="mt-3 pt-2 border-top">
-                  <small className="text-muted d-block" style={{ fontSize: "0.75rem" }}>Razorpay Order ID:</small>
-                  <code className="text-dark small">{order.razorpay_order_id}</code>
+                <div className="admin-order-technical-id-group mt-3 pt-3 border-top">
+                  <span className="admin-order-technical-id-label">
+                    Razorpay Order ID
+                  </span>
+                  <div className="admin-order-technical-id-value">
+                    <code>{order.razorpay_order_id}</code>
+                  </div>
                 </div>
               )}
+
               {order.razorpay_payment_id && (
-                <div className="mt-2">
-                  <small className="text-muted d-block" style={{ fontSize: "0.75rem" }}>Razorpay Payment ID:</small>
-                  <code className="text-dark small">{order.razorpay_payment_id}</code>
+                <div className="admin-order-technical-id-group mt-2">
+                  <span className="admin-order-technical-id-label">
+                    Razorpay Payment ID
+                  </span>
+                  <div className="admin-order-technical-id-value">
+                    <code>{order.razorpay_payment_id}</code>
+                  </div>
                 </div>
               )}
             </div>

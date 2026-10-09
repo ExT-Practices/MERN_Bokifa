@@ -15,6 +15,7 @@ const FamilyPage = () => {
   const { isWishlisted, toggleWishlist, wishlistUpdatingId } = useWishlist();
   const [error, setError] = useState("");
   const { addToCart } = useCart();
+   const [stockQty, setStockQty] = useState()
   const productListRef = useRef(null);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -469,7 +470,6 @@ const FamilyPage = () => {
                 <ap-safesticky
                   className="product-facet-aside-inner"
                   offset="30"
-                  style={{ top: "-322.817px" }}
                 >
                   <div className="product-facet-filters-header hide-on-pocket">
                     <p className="heading h6">Filters</p>
@@ -662,8 +662,8 @@ const FamilyPage = () => {
       to right,
       rgb(226, 226, 226) 0%,
       rgb(226, 226, 226) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${minPercent}%,
-      rgba(102, 102, 102, 0.7) ${maxPercent}%,
+      rgb(2, 122, 54) ${minPercent}%,
+      rgb(2, 122, 54) ${maxPercent}%,
       rgb(226, 226, 226) ${maxPercent}%,
       rgb(226, 226, 226) 100%
     )`,
